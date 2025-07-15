@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Isaac Ritik Lall - Digital Portfolio</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        @keyframes gradient-animation {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(-45deg, #13112e, #231a5c, #0f0c29, #302b63);
+            background-size: 400% 400%;
+            animation: gradient-animation 15s ease infinite;
+            color: #E5E7EB; 
+            overflow-x: hidden;
+        }
+
+        body.modal-open {
+            overflow: hidden;
+        }
+        
+        #bg-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            opacity: 0.5;
+        }
+
+        .content-wrapper {
+            position: relative;
+            z-index: 1;
+        }
+
+        .glass-card {
+            background: rgba(25, 22, 63, 0.4);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 1.5rem;
+            transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+            box-shadow: 0 4px 30px rgba(0,0,0,0.2);
+        }
+
+        .interactive-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+            background: rgba(25, 22, 63, 0.6);
+            cursor: pointer;
+        }
+        
+        html {
+            scroll-behavior: smooth;
+        }
+
+        .section-title {
+            font-size: 3rem;
+            font-weight: 900;
+            text-align: center;
+            margin-bottom: 3rem;
+            background: -webkit-linear-gradient(45deg, #c792ea, #f78cbe);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .fade-in {
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+        }
+
+        .fade-in.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        
+        /* Accordion & Code Block Styles */
+        .card-header { cursor: pointer; padding: 2rem; transition: background-color 0.3s ease; }
+        .card-header:hover { background-color: rgba(255,255,255,0.05); }
+        .card-details { max-height: 0; opacity: 0; overflow: hidden; padding: 0 2rem; transition: max-height 0.7s ease-in-out, opacity 0.5s ease-in-out, padding 0.5s ease-in-out; }
+        .card-details.expanded { max-height: 1000px; opacity: 1; padding: 0 2rem 2rem 2rem; }
+        .chevron-icon { transition: transform 0.5s ease; }
+        .card-header.active .chevron-icon { transform: rotate(180deg); }
+        .code-block { background-color: #110f24; border-radius: 0.5rem; padding: 1rem; margin-top: 1rem; position: relative; }
+        .copy-btn { position: absolute; top: 0.5rem; right: 0.5rem; background-color: #4a00e0; color: white; border: none; padding: 0.25rem 0.5rem; border-radius: 0.25rem; cursor: pointer; }
+
+        /* Writing Modal Styles */
+        #writing-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 100;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(-45deg, #13112e, #231a5c, #0f0c29, #302b63);
+            background-size: 400% 400%;
+            animation: gradient-animation 15s ease infinite;
+            opacity: 0;
+            transition: opacity 0.4s ease;
+        }
+        #writing-modal.active { display: flex; opacity: 1; }
+        .modal-content { background: rgba(0,0,0,0.3); backdrop-filter: blur(10px); border-radius: 1rem; padding: 2rem; width: 90%; max-width: 800px; max-height: 90vh; overflow-y: auto; position: relative; }
+        .modal-close-btn { position: absolute; top: 1rem; right: 1.5rem; font-size: 2rem; color: white; cursor: pointer; }
+        .modal-title { font-size: 2.5rem; font-weight: 900; margin-bottom: 1rem; }
+        .modal-body { white-space: pre-wrap; line-height: 1.8; }
+    </style>
+<meta name="google-site-verification" content="Bfh4TFLV7OiOg4nZ5f0wZXSNV9SbH3ekhrjs0dVzLRc" />
+</head>
+<body class="antialiased">
+
+    <canvas id="bg-canvas"></canvas>
+
+    <div class="content-wrapper">
+
+        <header class="fixed top-0 left-0 right-0 z-50 bg-black/20 backdrop-blur-lg">
+            <div class="container mx-auto px-6 py-4 flex justify-between items-center">
+                <h1 class="text-2xl font-bold tracking-tighter text-white">Isaac Ritik Lall</h1>
+                <nav class="hidden md:flex space-x-8">
+                    <a href="#home" class="text-gray-300 hover:text-white transition duration-300">Home</a>
+                    <a href="#philosophy" class="text-gray-300 hover:text-white transition duration-300">Philosophy</a>
+                    <a href="#creations" class="text-gray-300 hover:text-white transition duration-300">Creations</a>
+                    <a href="#skills" class="text-gray-300 hover:text-white transition duration-300">Skills</a>
+                    <a href="#writing" class="text-gray-300 hover:text-white transition duration-300">Writing</a>
+                    <a href="#contact" class="text-gray-300 hover:text-white transition duration-300">Contact</a>
+                </nav>
+            </div>
+        </header>
+
+        <main>
+            <section id="home" class="min-h-screen flex items-center justify-center text-center">
+                <div class="container mx-auto px-6">
+                    <h2 class="text-5xl md:text-8xl font-black text-white leading-tight mb-4">Isaac Ritik Lall</h2>
+                    <p class="text-xl md:text-2xl text-gray-300 max-w-3xl mx-auto">A curious mind exploring the intersection of code, creativity, and the cosmos.</p>
+                </div>
+            </section>
+
+            <section id="philosophy" class="py-20 md:py-32 fade-in">
+                <div class="container mx-auto px-6 max-w-4xl">
+                    <h3 class="section-title">My Philosophy</h3>
+                    <p class="text-center text-lg text-gray-300">I see technology not just as a tool, but as a language for expressing ideas and a canvas for bringing imagination to life. My journey at BITS Pilani has taught me the fundamentals of computer science, but my curiosity drives me to look beyond the syntax. I believe in building things that are not only functional and efficient but also elegant and intuitive. For me, a line of code can be as expressive as a line of poetry, and a well-designed system as beautiful as a work of art. My goal is to bridge the gap between complex logic and human experience, creating solutions that resonate and inspire.</p>
+                </div>
+            </section>
+
+            <section id="creations" class="py-20 md:py-32 fade-in">
+                <div class="container mx-auto px-6">
+                    <h3 class="section-title">My Creations</h3>
+                    <div class="space-y-8 max-w-4xl mx-auto">
+                        
+                        <div class="glass-card creation-card">
+                            <div class="card-header flex justify-between items-center"><div class="flex items-center space-x-4"><i class="fas fa-robot text-3xl text-purple-400"></i><h4 class="text-2xl font-bold">Simple AI Assistant</h4></div><i class="fas fa-chevron-down text-2xl chevron-icon"></i></div>
+                            <div class="card-details">
+                                <p class="text-gray-300 text-lg">This project is a lightweight, command-line AI assistant built in Python...<br><br><strong>Key Features:</strong> It integrates with various APIs to search the internet, provide weather updates, and manage a to-do list...<br><br><strong>Tech Stack:</strong> Python, SpeechRecognition, pyttsx3, and various web APIs.</p>
+                                <div class="code-block">
+                                    <button class="copy-btn">Copy</button>
+                                    <pre><code class="language-python">
+# Example of a simple command handler
+import webbrowser
+
+def handle_command(command):
+    if "search for" in command:
+        query = command.replace("search for", "").strip()
+        print(f"Searching for {query}...")
+        webbrowser.open(f"https://www.google.com/search?q={query}")
+        return "I've opened a browser with your search results."
+    elif "remind me to" in command:
+        # Reminder logic would go here
+        return "Reminder set!"
+    else:
+        return "Sorry, I don't understand that command."
+
+# Main loop (simplified)
+# response = handle_command("search for BITS Pilani")
+# print(response)
+                                    </code></pre>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="glass-card creation-card">
+                            <div class="card-header flex justify-between items-center"><div class="flex items-center space-x-4"><i class="fas fa-book-open text-3xl text-pink-400"></i><h4 class="text-2xl font-bold">PDF Book Summarizer</h4></div><i class="fas fa-chevron-down text-2xl chevron-icon"></i></div>
+                            <div class="card-details">
+                                <p class="text-gray-300 text-lg">Faced with the challenge of consuming vast amounts of information...<br><br><strong>Key Features:</strong> The tool can process multi-page documents, clean the extracted text, and apply an extractive summarization algorithm...<br><br><strong>Tech Stack:</strong> Python, PyPDF2, NLTK.</p>
+                                <div class="code-block">
+                                    <button class="copy-btn">Copy</button>
+                                    <pre><code class="language-python">
+# Simplified PDF text extraction
+import PyPDF2
+from nltk.tokenize import sent_tokenize
+
+def extract_text_from_pdf(pdf_path):
+    text = ""
+    with open(pdf_path, 'rb') as file:
+        reader = PyPDF2.PdfReader(file)
+        for page in reader.pages:
+            text += page.extract_text()
+    return text
+
+def summarize(text, num_sentences=5):
+    # This is a placeholder for a real summarization algorithm
+    sentences = sent_tokenize(text)
+    # A real algorithm would score sentences based on importance
+    return " ".join(sentences[:num_sentences])
+
+# book_text = extract_text_from_pdf('my_book.pdf')
+# summary = summarize(book_text)
+# print(summary)
+                                    </code></pre>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="glass-card creation-card">
+                            <div class="card-header flex justify-between items-center"><div class="flex items-center space-x-4"><i class="fas fa-cube text-3xl text-teal-400"></i><h4 class="text-2xl font-bold">3D Website Generator</h4></div><i class="fas fa-chevron-down text-2xl chevron-icon"></i></div>
+                            <div class="card-details">
+                                <p class="text-gray-300 text-lg">This project merges my interests in web development and 3D graphics...<br><br><strong>Key Features:</strong> The generator allows a user to input basic details...<br><br><strong>Tech Stack:</strong> Python, HTML, CSS, JavaScript/Three.js.</p>
+                                <div class="code-block">
+                                    <button class="copy-btn">Copy</button>
+                                    <pre><code class="language-python">
+# Python script to generate a basic HTML file
+def create_portfolio_page(name, title):
+    html_template = f"""
+&lt;!DOCTYPE html&gt;
+&lt;html&gt;
+&lt;head&gt;
+    &lt;title&gt;{name}'s Portfolio&lt;/title&gt;
+&lt;/head&gt;
+&lt;body&gt;
+    &lt;h1&gt;{name}&lt;/h1&gt;
+    &lt;p&gt;{title}&lt;/p&gt;
+    &lt;!-- Three.js canvas would be here --&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+"""
+    with open('portfolio.html', 'w') as f:
+        f.write(html_template)
+    print("Portfolio page created!")
+
+# create_portfolio_page("Isaac Lall", "Creator & Developer")
+                                    </code></pre>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <section id="skills" class="py-20 md:py-32 fade-in">
+                <div class="container mx-auto px-6"><h3 class="section-title">Technical Skills</h3><div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-8 max-w-5xl mx-auto text-center"><div class="glass-card p-6 flex flex-col items-center justify-center space-y-3"><i class="fab fa-python text-5xl text-yellow-400"></i><h4 class="font-bold text-lg">Python</h4></div><div class="glass-card p-6 flex flex-col items-center justify-center space-y-3"><i class="fab fa-js-square text-5xl text-yellow-500"></i><h4 class="font-bold text-lg">JavaScript</h4></div><div class="glass-card p-6 flex flex-col items-center justify-center space-y-3"><i class="fas fa-brain text-5xl text-pink-400"></i><h4 class="font-bold text-lg">AI / ML</h4></div><div class="glass-card p-6 flex flex-col items-center justify-center space-y-3"><i class="fab fa-html5 text-5xl text-orange-500"></i><h4 class="font-bold text-lg">HTML & CSS</h4></div><div class="glass-card p-6 flex flex-col items-center justify-center space-y-3"><i class="fab fa-react text-5xl text-cyan-400"></i><h4 class="font-bold text-lg">React</h4></div></div></div>
+            </section>
+
+            <section id="writing" class="py-20 md:py-32 bg-black/20 fade-in">
+                <div class="container mx-auto px-6">
+                    <h3 class="section-title">From My Pen</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-10 max-w-4xl mx-auto">
+                        <div class="glass-card interactive-card writing-item"><div class="p-8"><h4 class="text-2xl font-bold mb-2 text-pink-300">A Romantic Novel: "Echoes in the Starlight"</h4><p class="text-gray-400 italic">"Two souls, separated by time but connected by a constellation only they can see, find love in the letters they leave for each other across centuries..."</p></div></div>
+                        <div class="glass-card interactive-card writing-item"><div class="p-8"><h4 class="text-2xl font-bold mb-2 text-teal-300">A Sci-Fi Story: "The Last Signal"</h4><p class="text-gray-400 italic">"In a silent universe, a lone archivist discovers a single, repeating signal from a dead planet. It's not a cry for help—it's a warning about the silence itself..."</p></div></div>
+                        <div class="glass-card interactive-card writing-item"><div class="p-8"><h4 class="text-2xl font-bold mb-2 text-yellow-300">An Interesting Story: "The Clockmaker's Paradox"</h4><p class="text-gray-400 italic">"A man who can 'borrow' time from his future self to perfect his present must pay it all back at once, living a lifetime of regret in a single, agonizing moment..."</p></div></div>
+                        <div class="glass-card interactive-card writing-item"><div class="p-8"><h4 class="text-2xl font-bold mb-2 text-purple-300">A Song: "Porcelain Heart"</h4><p class="text-gray-400 italic">"Verse: Streetlights paint the rain-slicked glass / Another night I have to pass / With a porcelain heart, afraid to beat / On this one-way, empty street..."</p></div></div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="contact" class="py-20 md:py-32 fade-in">
+                <div class="container mx-auto px-6 text-center max-w-2xl">
+                     <h3 class="section-title">Get In Touch</h3>
+                     <p class="text-gray-300 mb-8 text-lg">Have a question, a project idea, or just want to talk about the universe? I'd love to hear from you. You can reach me directly at <a href="mailto:ravilall408@gmail.com" class="text-teal-400 hover:underline">ravilall408@gmail.com</a> or use the button below.</p>
+                     <a href="mailto:ravilall408@gmail.com" class="bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600 text-white font-bold py-4 px-10 rounded-full transition-all duration-300 inline-block text-lg shadow-lg hover:shadow-xl"><i class="fas fa-paper-plane mr-2"></i> Say Hello</a>
+                </div>
+            </section>
+        </main>
+
+        <footer class="py-8 border-t border-gray-800/50"><div class="container mx-auto px-6 text-center text-gray-500"><p>&copy; 2025 Isaac Ritik Lall. All Rights Reserved.</p></div></footer>
+    </div>
+
+    <!-- Writing Modal -->
+    <div id="writing-modal">
+        <div class="modal-content">
+            <span class="modal-close-btn">&times;</span>
+            <h3 id="modal-title" class="modal-title"></h3>
+            <p id="modal-body" class="modal-body"></p>
+        </div>
+    </div>
+
+    <!-- Hidden Divs for Writing Content -->
+    <div id="writing-content" class="hidden">
+        <div data-title="A Romantic Novel: &quot;Echoes in the Starlight&quot;">
+            The year is 2242. Elara traced the glowing constellation on her star-chart, a pattern unseen by any other astronomer in the galaxy. She called it the 'Ghost Kiss.' It wasn't just a cluster of stars; it was a message, a feeling of impossible familiarity that resonated across the void. In her small observatory perched on the terraformed plains of Mars, she felt less like a scientist and more like a woman haunted by a love she’d never known.
+
+            One night, tucked away in a dusty digital archive, she found it: a series of unsent letters from the early 21st century, written by an astrophysicist named Liam. He wrote of his own discovery, a strange new asterism he’d named 'The Whisper.' His sketches matched her Ghost Kiss perfectly.
+
+            "To the one who sees this after I'm gone," his first letter began, "Know that you are not seeing stars, but the echoes of a heart that beats for you across time. I don't know who you are, or when you are, but I feel you when I look at the sky. I will leave my story for you in these stars, a breadcrumb trail through the darkness."
+
+            Elara felt a shiver that had nothing to do with the Martian night. Liam's letters spoke of his life, his dreams, his loneliness, and his unwavering belief that someone, someday, would look up and see his message. He was writing to her. As she devoured his words, the centuries between them melted away, and the cold, distant stars of the Ghost Kiss burned with the warmth of a love story waiting to be read. She knew then that her life's work was no longer to chart the stars, but to answer a letter sent two hundred years too soon.
+        </div>
+        <div data-title="A Sci-Fi Story: &quot;The Last Signal&quot;">
+            Kaelen was the last archivist of a dead galaxy. For centuries, his job was to listen to the silence, to catalogue the dying whispers of civilizations long gone. It was a lonely vigil, punctuated only by the static hiss of cosmic background radiation. Until the signal came.
+
+            It wasn't a distress call. It was too calm, too rhythmic. A simple, repeating pulse from Xylos, a planet that had gone dark millennia ago, its star long since extinguished. The signal was a ghost, an impossibility.
+
+            For weeks, Kaelen worked, filtering the signal through every decryption algorithm known to his people. The message was short, encoded in a prime number sequence that was universally mathematical. When he finally translated it, the words chilled him to his core.
+
+            It did not say, "Is anyone out there?"
+            It did not say, "Help us."
+
+            It said: "DO NOT RESPOND. IT LISTENS TO THE NOISE."
+
+            Kaelen froze, his hand hovering over the transmission console. The silence of the universe suddenly felt different. It was no longer empty. It was watchful. The civilizations he had catalogued hadn't just died out. They had been silenced.
+
+            The signal from Xylos wasn't a message from the past. It was an eternal warning, a lighthouse screaming into a storm. They had sent their last breath of energy not to cry for help, but to tell anyone listening to stay quiet. To survive.
+
+            Kaelen looked at his own console, at the blinking light indicating his active listening post. He was making noise. He was a beacon in the dark. And for the first time in his long, lonely life, he was terrified of who—or what—might hear him. He slowly reached out and, with a trembling finger, cut the power. The silence that followed was the most profound sound he had ever known.
+        </div>
+        <div data-title="An Interesting Story: &quot;The Clockmaker's Paradox&quot;">
+            Arthur was no ordinary clockmaker; his creations didn't just tell time, they manipulated it. His greatest invention was a small, silver pocket watch that allowed him to 'borrow' time from his own future. A clumsy misstep could be undone by borrowing thirty seconds. A difficult negotiation won by borrowing ten minutes to think. He lived a life of perfect moments, each one polished to a brilliant shine with borrowed time.
+
+            His future self, he reasoned, would be wise and content, happy to pay the price for a youth lived without regret. The debt grew, from hours to days, then to years. He met a woman, Clara, and used borrowed time to say the perfect words, to take her to the perfect places, to build a flawless romance. He borrowed five years to build a business from scratch, becoming a captain of industry overnight.
+
+            He was 40 years old, with a loving wife, successful children, and a vast fortune. He hadn't aged a day since he was 25. He felt a strange sense of unease. The watch had been quiet for years.
+
+            One evening, as he sat by the fire, Clara touched his hand. "You've given us a wonderful life, Arthur," she said, her voice soft, her face lined with the beautiful map of their shared years. "I wouldn't have changed a moment."
+
+            In that instant, the silver watch in his pocket grew searingly hot. The debt was called in.
+
+            It didn't happen in a flash. It was an agonizing crawl. He felt the weight of fifteen years of missed moments, of unearned successes, of conversations he should have stumbled through, of failures he should have learned from. He saw Clara's face not as it was, but as a time-lapse of every wrinkle forming, every gray hair appearing, moments he had skipped and now had to pay for. The joy of his children's first steps was replaced with the hollow ache of an observer.
+
+            The physical toll was brutal. His body contorted, aging fifteen years in fifteen seconds. His hair turned to snow, his skin to parchment. But the mental toll was infinitely worse. He was forced to live a lifetime of regret, of 'what ifs,' of authentic, messy, imperfect moments he had traded away, all compressed into a single, crushing eternity.
+
+            He collapsed, an old man, the silver watch falling from his trembling hand and shattering on the hearth. Clara rushed to his side, her eyes wide with confusion and fear. He looked at her, his mind a whirlwind of borrowed memories and paid-for pain. He had lived a perfect life, and he couldn't remember a single, genuine second of it.
+        </div>
+        <div data-title="A Song: &quot;Porcelain Heart&quot;">
+            (Verse 1)
+            Streetlights paint the rain-slicked glass
+            Another night I have to pass
+            Watching shadows on the wall
+            Waiting for a silent call
+            You built your fortress, stone by stone
+            And left me in this room alone
+            With all the words I meant to say
+            That always seem to get in the way
+
+            (Chorus)
+            And oh, this porcelain heart of mine
+            It shows a crack with every line
+            You draw between what is and what could be
+            It's beautiful and frail, you see
+            One clumsy touch, one careless word
+            The loudest silence ever heard
+            And it could shatter, fall apart
+            This fragile, porcelain heart
+
+            (Verse 2)
+            I trace your name on frosted pane
+            A whispered word, a quiet pain
+            I replay moments in my head
+            The books of us I've left unread
+            I see your ghost in empty chairs
+            I'm tangled in these sweet despairs
+            And wonder if you ever knew
+            The world I would have built for you
+
+            (Chorus)
+            'Cause oh, this porcelain heart of mine
+            It shows a crack with every line
+            You draw between what is and what could be
+            It's beautiful and frail, you see
+            One clumsy touch, one careless word
+            The loudest silence ever heard
+            And it could shatter, fall apart
+            This fragile, porcelain heart
+
+            (Bridge)
+            Maybe I'm meant to be on a shelf
+            Kept safe and sound here by myself
+            Too scared to break, too weak to fight
+            Just a pale reflection in the fading light
+
+            (Outro)
+            Yeah, a pale reflection in the light...
+            My porcelain heart...
+            Goodnight... goodnight...
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // --- Accordion for Creations Section ---
+        const cardHeaders = document.querySelectorAll('.card-header');
+        cardHeaders.forEach(header => {
+            header.addEventListener('click', () => {
+                const currentlyActive = document.querySelector('.card-header.active');
+                if (currentlyActive && currentlyActive !== header) {
+                    currentlyActive.classList.remove('active');
+                    currentlyActive.nextElementSibling.classList.remove('expanded');
+                }
+                header.classList.toggle('active');
+                header.nextElementSibling.classList.toggle('expanded');
+            });
+        });
+
+        // --- Copy Code Button ---
+        document.querySelectorAll('.copy-btn').forEach(button => {
+            button.addEventListener('click', (e) => {
+                e.stopPropagation(); // Prevent accordion from closing
+                const code = button.nextElementSibling.textContent;
+                const textarea = document.createElement('textarea');
+                textarea.value = code;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                button.textContent = 'Copied!';
+                setTimeout(() => { button.textContent = 'Copy'; }, 2000);
+            });
+        });
+
+        // --- Writing Modal Logic ---
+        const writingModal = document.getElementById('writing-modal');
+        const modalTitle = document.getElementById('modal-title');
+        const modalBody = document.getElementById('modal-body');
+        const writingContent = document.getElementById('writing-content');
+        
+        document.querySelectorAll('.writing-item').forEach((item, index) => {
+            item.addEventListener('click', () => {
+                const contentDiv = writingContent.children[index];
+                const title = contentDiv.getAttribute('data-title');
+                const body = contentDiv.innerHTML;
+                
+                modalTitle.innerHTML = title;
+                modalBody.innerHTML = body;
+                writingModal.classList.add('active');
+                document.body.classList.add('modal-open');
+            });
+        });
+
+        function closeModal() {
+            writingModal.classList.remove('active');
+            document.body.classList.remove('modal-open');
+        }
+
+        document.querySelector('.modal-close-btn').addEventListener('click', closeModal);
+        writingModal.addEventListener('click', (e) => {
+            if (e.target === writingModal) {
+                closeModal();
+            }
+        });
+
+
+        // --- Intersection Observer for Fade-in Animations ---
+        const faders = document.querySelectorAll('.fade-in');
+        const appearOptions = { threshold: 0.1, rootMargin: "0px 0px -50px 0px" };
+        const appearOnScroll = new IntersectionObserver(function(entries, observer) {
+            entries.forEach(entry => {
+                if (!entry.isIntersecting) return;
+                entry.target.classList.add('visible');
+                observer.unobserve(entry.target);
+            });
+        }, appearOptions);
+        faders.forEach(fader => appearOnScroll.observe(fader));
+
+        // --- Three.js 3D Background Animation ---
+        window.onload = function() {
+            let scene, camera, renderer, shape, light, ambientLight, particles;
+
+            function init() {
+                scene = new THREE.Scene();
+                camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+                camera.position.z = 5;
+
+                const canvas = document.getElementById('bg-canvas');
+                renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                renderer.setClearColor(0x000000, 0);
+
+                const geometry = new THREE.TorusKnotGeometry(1.2, 0.4, 128, 16);
+                const material = new THREE.MeshStandardMaterial({ color: 0x9333ea, metalness: 0.7, roughness: 0.4, emissive: 0x9333ea, emissiveIntensity: 0.1 });
+                shape = new THREE.Mesh(geometry, material);
+                scene.add(shape);
+
+                const particleCount = 5000;
+                const particlesGeometry = new THREE.BufferGeometry();
+                const posArray = new Float32Array(particleCount * 3);
+                for(let i=0; i < particleCount * 3; i++) { posArray[i] = (Math.random() - 0.5) * 20; }
+                particlesGeometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+                const particlesMaterial = new THREE.PointsMaterial({ size: 0.01, color: 0xffffff });
+                particles = new THREE.Points(particlesGeometry, particlesMaterial);
+                scene.add(particles);
+
+                light = new THREE.DirectionalLight(0xffffff, 1);
+                light.position.set(5, 5, 5);
+                scene.add(light);
+                
+                ambientLight = new THREE.AmbientLight(0xffffff, 0.2);
+                scene.add(ambientLight);
+
+                window.addEventListener('resize', onWindowResize, false);
+                document.addEventListener('mousemove', onMouseMove, false);
+                animate();
+            }
+
+            let mouseX = 0, mouseY = 0;
+            function onMouseMove(event) { mouseX = event.clientX; mouseY = event.clientY; }
+
+            const clock = new THREE.Clock();
+            function animate() {
+                const elapsedTime = clock.getElapsedTime();
+                shape.rotation.y = .3 * elapsedTime;
+                particles.rotation.y = -0.05 * elapsedTime;
+
+                if(mouseX > 0) {
+                    particles.rotation.x = -mouseY * (elapsedTime * 0.00003);
+                    particles.rotation.y = -mouseX * (elapsedTime * 0.00003);
+                }
+
+                renderer.render(scene, camera);
+                requestAnimationFrame(animate);
+            }
+
+            function onWindowResize() {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            }
+
+            init();
+        };
+    </script>
+
+</body>
+</html>
