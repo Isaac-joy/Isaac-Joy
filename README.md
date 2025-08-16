@@ -7,7 +7,6 @@ Welcome to the official repository for my personal portfolio website. This proje
 
 ### ✨ [Live Demo](https://Isaac-joy.github.io/) ✨
 
-**(Note: Replace `isaac-ritik-lall` with your actual GitHub username if it's different!)**
 
 ---
 
