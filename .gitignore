@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Secrets — never commit real keys
+.env
+*.local.env
+
+# Keep the template
+!.env.example
+
+# OS
+.DS_Store
+Thumbs.db

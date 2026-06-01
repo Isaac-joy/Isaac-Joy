@@ -1,0 +1,22 @@
+name: Supabase keep-alive
+
+# Free Supabase projects pause after 7 days with no DB queries. This runs a tiny
+# query every ~4 days to keep it active. Requires repo secrets SUPABASE_URL and
+# SUPABASE_ANON_KEY (Settings -> Secrets and variables -> Actions).
+
+on:
+  schedule:
+    - cron: "0 6 */4 * *"   # 06:00 UTC every ~4 days (always under the 7-day window)
+  workflow_dispatch: {}      # allows manual "Run workflow" to test
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run a lightweight query so the database stays active
+        run: |
+          curl -fsS \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+            "${{ secrets.SUPABASE_URL }}/rest/v1/users?select=id&limit=1" \
+            -o /dev/null -w "Supabase ping HTTP %{http_code}\n"

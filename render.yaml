@@ -1,0 +1,44 @@
+# Render Blueprint — deploys the Solo Leveling Council backend as a FREE web service.
+# Render -> New -> Blueprint -> connect this repo. Render reads this file and will
+# prompt for the secrets marked `sync: false`. See DEPLOY.md for full steps.
+services:
+  - type: web
+    name: solo-leveling-council-api
+    runtime: python
+    plan: free
+    region: oregon            # change if you prefer (frankfurt, singapore, ohio, virginia)
+    rootDir: backend          # the FastAPI app + requirements.txt live in backend/
+    buildCommand: pip install -r requirements.txt
+    # MUST bind 0.0.0.0 and Render's $PORT (do NOT use --reload in production):
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /
+    envVars:
+      # Pinned to avoid the bleeding-edge wheels issue (3.14) — all deps have 3.12 wheels.
+      - key: PYTHON_VERSION
+        value: "3.12.7"
+
+      # --- secrets: set these in the Render dashboard (never committed) ---
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+
+      # --- non-secret config: baked in here ---
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash
+      - key: OPENROUTER_MODEL
+        value: openai/gpt-oss-120b:free
+      - key: OPENROUTER_REFERER
+        value: https://solo-leveling-council.app
+      - key: OPENROUTER_TITLE
+        value: Solo Leveling Council
+      - key: MAX_SUBMISSIONS_PER_USER_PER_DAY
+        value: "3"
+      - key: CORS_ORIGINS
+        value: "*"
