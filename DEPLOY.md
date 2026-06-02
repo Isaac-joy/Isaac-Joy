@@ -42,9 +42,10 @@ Free Render services sleep after 15 min idle (~1–2 min cold start). Add a free
 > keep it to just this one service on the free plan.
 
 ## 4. Point the app at it
-In your Emergent frontend, set the API base URL to your Render URL. To tighten CORS for
-production, set `CORS_ORIGINS` on Render to your app's web origin (or leave `*` to start —
-React Native native requests don't send an `Origin` header anyway).
+In [`frontend/config.js`](frontend/config.js), set `BACKEND_URL` to your Render URL
+(e.g. `https://solo-leveling-council-api.onrender.com` — no trailing slash). Then reload
+the app (or rebuild it for the stores with EAS). CORS can stay `*` to start — React Native
+native requests don't send an `Origin` header anyway.
 
 ## Where each secret lives
 | Secret | Lives in |
