@@ -90,8 +90,15 @@ async def _openrouter_chat(
     return data["choices"][0]["message"]["content"]
 
 
-async def _openrouter_json(client, models, system_msg, user_msg, validate, temperature=0.4):
-    """Try each model in the pool; failover on HTTP errors, retry on bad JSON."""
+async def _openrouter_json(
+    client, models, system_msg, user_msg, validate, temperature=0.4, gemini_fallback=True
+):
+    """Try each free model in the pool; on exhaustion, fall back to Gemini.
+
+    Failover on HTTP errors (429 / 5xx / timeout), retry on bad JSON. Every failure
+    is logged so the server logs reveal the real reason (auth vs rate-limit vs bad JSON).
+    Gemini has a separate quota, so it covers the case where the whole free pool is busy.
+    """
     errors: list[str] = []
     for model in models:
         messages = [
@@ -102,17 +109,30 @@ async def _openrouter_json(client, models, system_msg, user_msg, validate, tempe
             try:
                 content = await _openrouter_chat(client, model, messages, temperature)
             except httpx.HTTPError as e:  # busy / rate-limited / 5xx / timeout → next model
-                errors.append(f"{model} http: {e!r}")
+                print(f"[llm] openrouter {model} http error: {e!r}", flush=True)
+                errors.append(f"{model} http")
                 break
             try:
                 return validate(_extract_json(content))
             except Exception as e:  # noqa: BLE001 — bad JSON → retry same model with a nudge
-                errors.append(f"{model} json: {e!r}")
+                print(f"[llm] openrouter {model} bad json: {e!r}", flush=True)
+                errors.append(f"{model} json")
                 messages.append({"role": "assistant", "content": content})
                 messages.append({
                     "role": "user",
                     "content": "Return ONLY the raw JSON object matching the schema.",
                 })
+
+    # Cross-provider last resort: Gemini (separate quota from the free OpenRouter pool).
+    if gemini_fallback:
+        try:
+            text = await _gemini_json(client, f"{system_msg}\n\n{user_msg}")
+            return validate(_extract_json(text))
+        except Exception as e:  # noqa: BLE001
+            print(f"[llm] gemini fallback failed: {e!r}", flush=True)
+            errors.append("gemini")
+
+    print(f"[llm] ALL providers failed: {errors}", flush=True)
     raise AIUnavailableError()
 
 
@@ -137,7 +157,7 @@ async def run_council(user: dict, log_data: str) -> CouncilAudit:
         try:
             return await _openrouter_json(
                 client, settings.council_fallback_list, COUNCIL_SYSTEM, prompt,
-                CouncilAudit.model_validate_json, temperature=0.7,
+                CouncilAudit.model_validate_json, temperature=0.7, gemini_fallback=False,
             )
         except AIUnavailableError as e:
             errors.append(str(e))
