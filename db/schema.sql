@@ -137,19 +137,25 @@ alter table public.daily_logs    enable row level security;
 alter table public.active_quests enable row level security;
 
 -- users: see / edit only your own profile
+drop policy if exists "own profile select" on public.users;
 create policy "own profile select" on public.users
   for select using (auth.uid() = id);
+drop policy if exists "own profile insert" on public.users;
 create policy "own profile insert" on public.users
   for insert with check (auth.uid() = id);
+drop policy if exists "own profile update" on public.users;
 create policy "own profile update" on public.users
   for update using (auth.uid() = id);
 
 -- daily_logs: insert / read only your own logs
+drop policy if exists "own logs select" on public.daily_logs;
 create policy "own logs select" on public.daily_logs
   for select using (auth.uid() = user_id);
+drop policy if exists "own logs insert" on public.daily_logs;
 create policy "own logs insert" on public.daily_logs
   for insert with check (auth.uid() = user_id);
 
 -- active_quests: read-only to the owner (only the backend writes them)
+drop policy if exists "own quests select" on public.active_quests;
 create policy "own quests select" on public.active_quests
   for select using (auth.uid() = user_id);
