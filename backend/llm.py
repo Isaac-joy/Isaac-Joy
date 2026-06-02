@@ -1,18 +1,39 @@
-"""Async LLM clients — free tiers only.
+"""Async LLM clients with multi-provider failover — free tiers only.
 
-The Council  -> Gemini 2.5 Flash (one combined call, JSON mode).
-The System    -> DeepSeek R1 via OpenRouter (:free), reasoning stripped + validated.
+Council     : Gemini 2.5 Flash (one combined call) → free OpenRouter models on failure.
+Synthesizer : an ordered pool of free OpenRouter models; on 429 / 5xx / timeout / bad-JSON
+              it auto-shifts to the next model.
+Missions    : generation + "polish my edit" both ride the same OpenRouter failover pool.
 
-Both validate against Pydantic and retry with a stricter instruction on malformed
-JSON, so the mobile UI never receives a broken payload.
+A single provider being rate-limited or slow never blocks a request — it moves down the pool.
 """
 import re
 
 import httpx
 
 from config import settings
-from models import CouncilAudit, SystemVerdict
-from prompts import SYNTHESIZER_SYSTEM, build_council_prompt, build_synthesizer_prompt
+from errors import AIUnavailableError
+from models import (
+    CouncilAudit,
+    MissionList,
+    MissionPolish,
+    ResourceList,
+    SystemVerdict,
+    WorkoutPlan,
+)
+from prompts import (
+    MISSIONS_SYSTEM,
+    POLISH_SYSTEM,
+    RESOURCES_SYSTEM,
+    SYNTHESIZER_SYSTEM,
+    WORKOUT_SYSTEM,
+    build_council_prompt,
+    build_missions_prompt,
+    build_polish_prompt,
+    build_resources_prompt,
+    build_synthesizer_prompt,
+    build_workout_prompt,
+)
 
 GEMINI_URL = (
     "https://generativelanguage.googleapis.com/v1beta/models/"
@@ -20,9 +41,14 @@ GEMINI_URL = (
 )
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
+COUNCIL_SYSTEM = (
+    "You are the three-member Council of a Solo-Leveling self-improvement app. "
+    "You output ONLY raw JSON — no markdown, no commentary."
+)
+
 
 def _extract_json(text: str) -> str:
-    """Strip R1 <think> blocks and markdown fences, isolate the JSON object."""
+    """Strip reasoning <think> blocks and markdown fences, isolate the JSON object."""
     if not text or not text.strip():
         raise ValueError("empty LLM response")
     cleaned = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
@@ -36,64 +62,133 @@ def _extract_json(text: str) -> str:
     return cleaned
 
 
-async def run_council(user: dict, log_data: str) -> CouncilAudit:
-    prompt = build_council_prompt(user, log_data)
-    params = {"key": settings.gemini_api_key}
-    last_err = None
-    async with httpx.AsyncClient(timeout=settings.llm_timeout_seconds) as client:
-        for _ in range(settings.json_retries):
-            payload = {
-                "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {
-                    "responseMimeType": "application/json",
-                    "temperature": 0.7,
-                },
-            }
-            resp = await client.post(GEMINI_URL, params=params, json=payload)
-            resp.raise_for_status()
-            data = resp.json()
-            try:
-                text = data["candidates"][0]["content"]["parts"][0]["text"]
-                return CouncilAudit.model_validate_json(_extract_json(text))
-            except Exception as e:  # noqa: BLE001
-                last_err = e
-                prompt += "\n\nReturn ONLY valid JSON matching the schema. No prose."
-    raise ValueError(f"Council returned invalid JSON after retries: {last_err}")
+async def _gemini_json(client: httpx.AsyncClient, prompt: str) -> str:
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"responseMimeType": "application/json", "temperature": 0.7},
+    }
+    resp = await client.post(
+        GEMINI_URL, params={"key": settings.gemini_api_key}, json=payload
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    return data["candidates"][0]["content"]["parts"][0]["text"]
 
 
-async def run_synthesizer(user: dict, audits: CouncilAudit) -> SystemVerdict:
+async def _openrouter_chat(
+    client: httpx.AsyncClient, model: str, messages: list, temperature: float = 0.4
+) -> str:
     headers = {
         "Authorization": f"Bearer {settings.openrouter_api_key}",
         "HTTP-Referer": settings.openrouter_referer,
         "X-Title": settings.openrouter_title,
     }
-    messages = [
-        {"role": "system", "content": SYNTHESIZER_SYSTEM},
-        {"role": "user", "content": build_synthesizer_prompt(user, audits.model_dump())},
-    ]
-    last_err = None
-    async with httpx.AsyncClient(timeout=settings.llm_timeout_seconds) as client:
+    payload = {"model": model, "messages": messages, "temperature": temperature}
+    resp = await client.post(OPENROUTER_URL, headers=headers, json=payload)
+    resp.raise_for_status()
+    data = resp.json()
+    return data["choices"][0]["message"]["content"]
+
+
+async def _openrouter_json(client, models, system_msg, user_msg, validate, temperature=0.4):
+    """Try each model in the pool; failover on HTTP errors, retry on bad JSON."""
+    errors: list[str] = []
+    for model in models:
+        messages = [
+            {"role": "system", "content": system_msg},
+            {"role": "user", "content": user_msg},
+        ]
         for _ in range(settings.json_retries):
-            payload = {
-                "model": settings.openrouter_model,
-                "messages": messages,
-                "temperature": 0.4,
-            }
-            resp = await client.post(OPENROUTER_URL, headers=headers, json=payload)
-            resp.raise_for_status()
-            data = resp.json()
-            content = ""
             try:
-                content = data["choices"][0]["message"]["content"]
-                return SystemVerdict.model_validate_json(_extract_json(content))
-            except Exception as e:  # noqa: BLE001
-                last_err = e
+                content = await _openrouter_chat(client, model, messages, temperature)
+            except httpx.HTTPError as e:  # busy / rate-limited / 5xx / timeout → next model
+                errors.append(f"{model} http: {e!r}")
+                break
+            try:
+                return validate(_extract_json(content))
+            except Exception as e:  # noqa: BLE001 — bad JSON → retry same model with a nudge
+                errors.append(f"{model} json: {e!r}")
                 messages.append({"role": "assistant", "content": content})
                 messages.append({
                     "role": "user",
-                    "content": (
-                        "That was not valid JSON for the required schema. "
-                        "Return ONLY the raw JSON object — no markdown, no commentary."
-                    ),
+                    "content": "Return ONLY the raw JSON object matching the schema.",
                 })
-    raise ValueError(f"Synthesizer returned invalid JSON after retries: {last_err}")
+    raise AIUnavailableError()
+
+
+async def run_council(user: dict, log_data: str) -> CouncilAudit:
+    prompt = build_council_prompt(user, log_data)
+    errors: list[str] = []
+    async with httpx.AsyncClient(timeout=settings.llm_timeout_seconds) as client:
+        # Primary: Gemini, with JSON-validation retries.
+        for _ in range(settings.json_retries):
+            try:
+                text = await _gemini_json(client, prompt)
+            except httpx.HTTPError as e:  # busy / 5xx / timeout → go to fallbacks
+                errors.append(f"gemini http: {e!r}")
+                break
+            try:
+                return CouncilAudit.model_validate_json(_extract_json(text))
+            except Exception as e:  # noqa: BLE001
+                errors.append(f"gemini json: {e!r}")
+                prompt += "\n\nReturn ONLY valid JSON matching the schema."
+
+        # Fallback: free OpenRouter models.
+        try:
+            return await _openrouter_json(
+                client, settings.council_fallback_list, COUNCIL_SYSTEM, prompt,
+                CouncilAudit.model_validate_json, temperature=0.7,
+            )
+        except AIUnavailableError as e:
+            errors.append(str(e))
+    raise AIUnavailableError(
+        "The Council could not convene — every AI model is busy or rate-limited. "
+        "Your report is saved; it will be evaluated automatically on retry."
+    )
+
+
+async def run_synthesizer(user: dict, audits: CouncilAudit) -> SystemVerdict:
+    user_msg = build_synthesizer_prompt(user, audits.model_dump())
+    async with httpx.AsyncClient(timeout=settings.llm_timeout_seconds) as client:
+        return await _openrouter_json(
+            client, settings.synth_model_list, SYNTHESIZER_SYSTEM, user_msg,
+            SystemVerdict.model_validate_json,
+        )
+
+
+async def generate_missions(user: dict) -> list:
+    user_msg = build_missions_prompt(user)
+    async with httpx.AsyncClient(timeout=settings.llm_timeout_seconds) as client:
+        result = await _openrouter_json(
+            client, settings.synth_model_list, MISSIONS_SYSTEM, user_msg,
+            MissionList.model_validate_json, temperature=0.6,
+        )
+    return result.missions
+
+
+async def polish_mission(user: dict, title: str, description: str) -> MissionPolish:
+    user_msg = build_polish_prompt(user, title, description)
+    async with httpx.AsyncClient(timeout=settings.llm_timeout_seconds) as client:
+        return await _openrouter_json(
+            client, settings.synth_model_list, POLISH_SYSTEM, user_msg,
+            MissionPolish.model_validate_json,
+        )
+
+
+async def generate_workout(user: dict) -> WorkoutPlan:
+    user_msg = build_workout_prompt(user)
+    async with httpx.AsyncClient(timeout=settings.llm_timeout_seconds) as client:
+        return await _openrouter_json(
+            client, settings.synth_model_list, WORKOUT_SYSTEM, user_msg,
+            WorkoutPlan.model_validate_json, temperature=0.6,
+        )
+
+
+async def generate_resources(user: dict) -> list:
+    user_msg = build_resources_prompt(user)
+    async with httpx.AsyncClient(timeout=settings.llm_timeout_seconds) as client:
+        result = await _openrouter_json(
+            client, settings.synth_model_list, RESOURCES_SYSTEM, user_msg,
+            ResourceList.model_validate_json, temperature=0.5,
+        )
+    return result.resources

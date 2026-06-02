@@ -16,7 +16,7 @@ class CouncilAudit(BaseModel):
     audits: List[PersonaAudit]
 
 
-# ── Synthesizer output (DeepSeek R1) — the strict UI contract ──
+# ── Synthesizer output — the strict UI contract ──
 class Quest(BaseModel):
     title: str
     description: str
@@ -38,6 +38,53 @@ class SystemVerdict(BaseModel):
     stat_adjustments: StatAdjustments
 
 
+# ── Missions (System-generated daily + user-editable, System-polished) ──
+class Mission(BaseModel):
+    title: str
+    description: str = ""
+    category: str = "general"
+    xp_reward: int = 50
+
+
+class MissionList(BaseModel):
+    missions: List[Mission]
+
+
+class MissionPolish(BaseModel):
+    title: str
+    description: str
+    rationale: str
+
+
+# ── Workouts (System-designed, equipment-aware) ──────────────────────────────
+class Exercise(BaseModel):
+    name: str
+    sets: int = 0
+    reps: str = ""       # "10-12", "to failure", or "" if duration-based
+    duration: str = ""   # "30s", "5 min", or "" if rep-based
+    target: str = ""     # muscle group / focus
+    equipment: str = ""  # equipment used, or "bodyweight"
+    notes: str = ""      # one short form cue
+
+
+class WorkoutPlan(BaseModel):
+    title: str
+    exercises: List[Exercise]
+
+
+# ── Resources (System-curated books / courses / tools per goal) ──────────────
+class Resource(BaseModel):
+    title: str
+    author: str = ""
+    type: str = "book"   # book | course | tool | channel | article
+    category: str = "general"
+    reason: str = ""
+
+
+class ResourceList(BaseModel):
+    resources: List[Resource]
+
+
 # ── API request bodies ──
 class LogSubmission(BaseModel):
     log_data: str = Field(min_length=1, max_length=10_000)
@@ -53,3 +100,10 @@ class ProfileUpdate(BaseModel):
     weight: Optional[float] = None
     height: Optional[float] = None
     physical_goal: Optional[str] = None
+    equipment: Optional[str] = None
+
+
+class MissionInput(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    description: str = Field(default="", max_length=2000)
+    category: str = "general"

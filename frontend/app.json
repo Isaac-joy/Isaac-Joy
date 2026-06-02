@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "Solo Leveling Council",
+    "slug": "solo-leveling-council",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0A0E1A",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#0A0E1A"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.solocouncil.app"
+    },
+    "android": {
+      "package": "com.solocouncil.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#0A0E1A"
+      }
+    },
+    "plugins": [
+      "expo-asset"
+    ]
+  }
+}
