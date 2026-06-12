@@ -30,7 +30,9 @@ class Settings(BaseSettings):
         "qwen/qwen3-next-80b-a3b-instruct:free,"
         "z-ai/glm-4.5-air:free"
     )
-    # Council = Gemini first; these free OpenRouter models are the fallbacks.
+    # Council pool (env var kept as COUNCIL_FALLBACK_MODELS for compatibility):
+    # Gemma 4 31B leads — it beat Gemini 2.5 Flash in blind judging on persona
+    # voice and actionability. Gemini remains the automatic last resort.
     council_fallback_models: str = (
         "google/gemma-4-31b-it:free,"
         "openai/gpt-oss-120b:free,"

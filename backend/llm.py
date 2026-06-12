@@ -1,9 +1,9 @@
 """Async LLM clients with multi-provider failover — free tiers only.
 
-Council     : Gemini 2.5 Flash (one combined call) → free OpenRouter models on failure.
-Synthesizer : an ordered pool of free OpenRouter models; on 429 / 5xx / timeout / bad-JSON
-              it auto-shifts to the next model.
-Missions    : generation + "polish my edit" both ride the same OpenRouter failover pool.
+Every AI task (council, synthesizer, missions, workouts, resources, polish) rides the
+same architecture: an ordered pool of free OpenRouter models led by Gemma 4 31B
+(blind-judged best for this app's tasks), auto-shifting on 429 / 5xx / timeout /
+bad-JSON, with Gemini 2.5 Flash as the cross-provider last resort (separate quota).
 
 A single provider being rate-limited or slow never blocks a request — it moves down the pool.
 """
@@ -137,34 +137,20 @@ async def _openrouter_json(
 
 
 async def run_council(user: dict, log_data: str) -> CouncilAudit:
+    """Council pool: Gemma 4 31B first (won the blind persona/actionability judging),
+    then the proven free models, then Gemini as the cross-provider last resort."""
     prompt = build_council_prompt(user, log_data)
-    errors: list[str] = []
     async with httpx.AsyncClient(timeout=settings.llm_timeout_seconds) as client:
-        # Primary: Gemini, with JSON-validation retries.
-        for _ in range(settings.json_retries):
-            try:
-                text = await _gemini_json(client, prompt)
-            except httpx.HTTPError as e:  # busy / 5xx / timeout → go to fallbacks
-                errors.append(f"gemini http: {e!r}")
-                break
-            try:
-                return CouncilAudit.model_validate_json(_extract_json(text))
-            except Exception as e:  # noqa: BLE001
-                errors.append(f"gemini json: {e!r}")
-                prompt += "\n\nReturn ONLY valid JSON matching the schema."
-
-        # Fallback: free OpenRouter models.
         try:
             return await _openrouter_json(
                 client, settings.council_fallback_list, COUNCIL_SYSTEM, prompt,
-                CouncilAudit.model_validate_json, temperature=0.7, gemini_fallback=False,
+                CouncilAudit.model_validate_json, temperature=0.7, gemini_fallback=True,
             )
-        except AIUnavailableError as e:
-            errors.append(str(e))
-    raise AIUnavailableError(
-        "The Council could not convene — every AI model is busy or rate-limited. "
-        "Your report is saved; it will be evaluated automatically on retry."
-    )
+        except AIUnavailableError:
+            raise AIUnavailableError(
+                "The Council could not convene — every AI model is busy or rate-limited. "
+                "Your report is saved; it will be evaluated automatically on retry."
+            )
 
 
 async def run_synthesizer(user: dict, audits: CouncilAudit) -> SystemVerdict:
