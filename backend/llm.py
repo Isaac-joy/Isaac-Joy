@@ -14,23 +14,29 @@ import httpx
 from config import settings
 from errors import AIUnavailableError
 from models import (
+    ChapterNotes,
     CouncilAudit,
     MissionList,
     MissionPolish,
     ResourceList,
+    StudyPlan,
     SystemVerdict,
     WorkoutPlan,
 )
 from prompts import (
     MISSIONS_SYSTEM,
+    NOTES_SYSTEM,
     POLISH_SYSTEM,
     RESOURCES_SYSTEM,
+    STUDY_SYSTEM,
     SYNTHESIZER_SYSTEM,
     WORKOUT_SYSTEM,
+    build_chapter_notes_prompt,
     build_council_prompt,
     build_missions_prompt,
     build_polish_prompt,
     build_resources_prompt,
+    build_study_plan_prompt,
     build_synthesizer_prompt,
     build_workout_prompt,
 )
@@ -181,12 +187,30 @@ async def polish_mission(user: dict, title: str, description: str) -> MissionPol
         )
 
 
-async def generate_workout(user: dict) -> WorkoutPlan:
-    user_msg = build_workout_prompt(user)
+async def generate_workout(user: dict, catalog: str = "") -> WorkoutPlan:
+    user_msg = build_workout_prompt(user, catalog)
     async with httpx.AsyncClient(timeout=settings.llm_timeout_seconds) as client:
         return await _openrouter_json(
             client, settings.synth_model_list, WORKOUT_SYSTEM, user_msg,
             WorkoutPlan.model_validate_json, temperature=0.6,
+        )
+
+
+async def generate_study_plan(user: dict, book: dict, toc: list) -> StudyPlan:
+    user_msg = build_study_plan_prompt(user, book, toc)
+    async with httpx.AsyncClient(timeout=settings.llm_timeout_seconds) as client:
+        return await _openrouter_json(
+            client, settings.synth_model_list, STUDY_SYSTEM, user_msg,
+            StudyPlan.model_validate_json, temperature=0.5,
+        )
+
+
+async def generate_chapter_notes(user: dict, book_title: str, chapter: dict) -> ChapterNotes:
+    user_msg = build_chapter_notes_prompt(user, book_title, chapter)
+    async with httpx.AsyncClient(timeout=settings.llm_timeout_seconds) as client:
+        return await _openrouter_json(
+            client, settings.synth_model_list, NOTES_SYSTEM, user_msg,
+            ChapterNotes.model_validate_json, temperature=0.4,
         )
 
 

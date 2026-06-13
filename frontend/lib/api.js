@@ -89,4 +89,20 @@ export const api = {
     authedFetch("/api/me/resources/generate", { method: "POST" }),
   refreshResources: () =>
     authedFetch("/api/me/resources/refresh", { method: "POST" }),
+
+  // ── Academy ─────────────────────────────────────────────────────────────────
+  getBooks: () => authedFetch("/api/me/books"),
+  enrollBook: (body) =>
+    authedFetch("/api/me/books", { method: "POST", body: JSON.stringify(body) }),
+  getChapters: (bookId) => authedFetch(`/api/me/books/${bookId}/chapters`),
+  completeChapter: (bookId, chapterId) =>
+    authedFetch(`/api/me/books/${bookId}/chapters/${chapterId}/complete`, {
+      method: "POST",
+    }),
+  getChapterNotes: (bookId, chapterId) =>
+    authedFetch(`/api/me/books/${bookId}/chapters/${chapterId}/notes`, {
+      method: "POST",
+    }),
+  deleteBook: (bookId) =>
+    authedFetch(`/api/me/books/${bookId}`, { method: "DELETE" }),
 };

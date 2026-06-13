@@ -11,16 +11,20 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+import books as book_data
+import exercise_db
 from auth import get_current_user_id
 from config import settings
 from errors import AppError
 from llm import (
+    generate_chapter_notes,
     generate_missions,
     generate_resources,
+    generate_study_plan,
     generate_workout,
     polish_mission,
 )
-from models import LogSubmission, MissionInput, ProfileUpdate
+from models import BookInput, LogSubmission, MissionInput, ProfileUpdate
 from supabase_client import db
 from worker import council_worker
 
@@ -265,7 +269,13 @@ _WORKOUT_STRENGTH_REWARD = 5
 
 async def _create_workout(user_id: str) -> dict:
     profile = await db.select_one("users", filters={"id": f"eq.{user_id}"}) or {}
-    plan = await generate_workout(profile)
+    # Give the LLM the real exercise catalog (filtered to the Hunter's equipment) so
+    # every exercise maps to demo photos; enrich() attaches the image URLs after.
+    catalog = ""
+    if await exercise_db.load_catalog():
+        catalog = exercise_db.catalog_block(profile.get("equipment") or "")
+    plan = await generate_workout(profile, catalog)
+    exercise_db.enrich(plan.exercises)
     return await db.insert_returning(
         "workouts",
         {
@@ -394,3 +404,160 @@ async def generate_resources_endpoint(user_id: str = Depends(get_current_user_id
 async def refresh_resources(user_id: str = Depends(get_current_user_id)):
     await db.delete("resources", filters={"user_id": f"eq.{user_id}"})
     return await _create_resources(user_id)
+
+
+# ── The Academy (book → System-designed study campaign) ──────────────────────
+_CHAPTER_INTELLECT_REWARD = 4
+_BOOK_FINISH_BONUS = 6
+
+
+@app.get("/api/me/books")
+async def list_books(user_id: str = Depends(get_current_user_id)):
+    return await db.select_rows(
+        "books",
+        filters={"user_id": f"eq.{user_id}"},
+        order="created_at",
+        desc=True,
+        limit=30,
+    )
+
+
+@app.post("/api/me/books")
+async def enroll_book(body: BookInput, user_id: str = Depends(get_current_user_id)):
+    """Look the book up (Open Library), find legal free text (Gutenberg/Archive for
+    public-domain works), then have the System design the study campaign."""
+    profile = await db.select_one("users", filters={"id": f"eq.{user_id}"}) or {}
+
+    meta = None
+    try:
+        meta = await book_data.search_book(body.title, body.author)
+    except Exception as e:  # noqa: BLE001 — book lookup is best-effort
+        print(f"[academy] open library lookup failed: {e!r}", flush=True)
+    if not meta:
+        meta = {"title": body.title, "author": body.author, "subjects": [], "pages": None,
+                "ol_work_key": "", "cover_url": "", "ebook_access": "", "ia_ids": []}
+
+    toc: list = []
+    try:
+        toc = await book_data.get_toc(meta.get("ol_work_key") or "")
+    except Exception as e:  # noqa: BLE001
+        print(f"[academy] toc scan failed: {e!r}", flush=True)
+
+    free = {"free_text_url": "", "free_reader_url": ""}
+    try:
+        free = await book_data.resolve_free_text(meta)
+    except Exception as e:  # noqa: BLE001
+        print(f"[academy] free-text resolve failed: {e!r}", flush=True)
+
+    plan = await generate_study_plan(profile, meta, toc)
+
+    book = await db.insert_returning(
+        "books",
+        {
+            "user_id": user_id,
+            "title": meta.get("title") or body.title,
+            "author": meta.get("author") or body.author,
+            "cover_url": meta.get("cover_url") or "",
+            "ol_work_key": meta.get("ol_work_key") or "",
+            "ebook_access": meta.get("ebook_access") or "",
+            "free_text_url": free["free_text_url"],
+            "free_reader_url": free["free_reader_url"],
+        },
+    )
+    chapters = []
+    for ch in sorted(plan.chapters, key=lambda c: c.ordinal):
+        chapters.append(
+            await db.insert_returning(
+                "book_chapters",
+                {
+                    "user_id": user_id,
+                    "book_id": book["id"],
+                    "ordinal": ch.ordinal,
+                    "title": ch.title,
+                    "objective": ch.objective,
+                    "key_concepts": ch.key_concepts,
+                    "youtube_query": ch.youtube_query,
+                    "xp_reward": ch.xp_reward,
+                },
+            )
+        )
+    return {"book": book, "chapters": chapters}
+
+
+@app.get("/api/me/books/{book_id}/chapters")
+async def list_chapters(book_id: int, user_id: str = Depends(get_current_user_id)):
+    return await db.select_rows(
+        "book_chapters",
+        filters={"book_id": f"eq.{book_id}", "user_id": f"eq.{user_id}"},
+        order="ordinal",
+    )
+
+
+@app.post("/api/me/books/{book_id}/chapters/{chapter_id}/complete")
+async def complete_chapter(
+    book_id: int, chapter_id: int, user_id: str = Depends(get_current_user_id)
+):
+    ch = await db.select_one(
+        "book_chapters",
+        filters={"id": f"eq.{chapter_id}", "book_id": f"eq.{book_id}", "user_id": f"eq.{user_id}"},
+    )
+    if not ch:
+        raise HTTPException(status_code=404, detail="Chapter not found")
+    book_completed = False
+    if ch.get("status") != "completed":
+        await db.update(
+            "book_chapters",
+            {"status": "completed", "completed_at": datetime.now(timezone.utc).isoformat()},
+            filters={"id": f"eq.{chapter_id}", "user_id": f"eq.{user_id}"},
+        )
+        reward = _CHAPTER_INTELLECT_REWARD
+        remaining = await db.count_rows(
+            "book_chapters",
+            filters={"book_id": f"eq.{book_id}", "user_id": f"eq.{user_id}", "status": "eq.active"},
+        )
+        if remaining == 0:
+            await db.update(
+                "books",
+                {"status": "completed", "completed_at": datetime.now(timezone.utc).isoformat()},
+                filters={"id": f"eq.{book_id}", "user_id": f"eq.{user_id}"},
+            )
+            reward += _BOOK_FINISH_BONUS
+            book_completed = True
+        await db.rpc(
+            "apply_stat_deltas",
+            {"p_user_id": user_id, "p_intellect": reward, "p_wealth": 0, "p_strength": 0},
+        )
+    return {"status": "completed", "chapter_id": chapter_id, "book_completed": book_completed}
+
+
+@app.post("/api/me/books/{book_id}/chapters/{chapter_id}/notes")
+async def chapter_notes(
+    book_id: int, chapter_id: int, user_id: str = Depends(get_current_user_id)
+):
+    ch = await db.select_one(
+        "book_chapters",
+        filters={"id": f"eq.{chapter_id}", "book_id": f"eq.{book_id}", "user_id": f"eq.{user_id}"},
+    )
+    if not ch:
+        raise HTTPException(status_code=404, detail="Chapter not found")
+    if ch.get("notes"):
+        return {"notes": ch["notes"]}  # idempotent: generated once, stored
+    book = await db.select_one(
+        "books", filters={"id": f"eq.{book_id}", "user_id": f"eq.{user_id}"}
+    ) or {}
+    profile = await db.select_one("users", filters={"id": f"eq.{user_id}"}) or {}
+    result = await generate_chapter_notes(profile, book.get("title") or "", ch)
+    await db.update(
+        "book_chapters",
+        {"notes": result.notes},
+        filters={"id": f"eq.{chapter_id}", "user_id": f"eq.{user_id}"},
+    )
+    return {"notes": result.notes}
+
+
+@app.delete("/api/me/books/{book_id}")
+async def delete_book(book_id: int, user_id: str = Depends(get_current_user_id)):
+    await db.delete(
+        "books", filters={"id": f"eq.{book_id}", "user_id": f"eq.{user_id}"}
+    )
+    return {"status": "deleted", "book_id": book_id}

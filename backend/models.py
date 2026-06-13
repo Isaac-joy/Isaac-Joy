@@ -59,17 +59,42 @@ class MissionPolish(BaseModel):
 # ── Workouts (System-designed, equipment-aware) ──────────────────────────────
 class Exercise(BaseModel):
     name: str
+    exercise_id: str = ""       # free-exercise-db id; picked by the LLM from the catalog
     sets: int = 0
     reps: str = ""       # "10-12", "to failure", or "" if duration-based
     duration: str = ""   # "30s", "5 min", or "" if rep-based
     target: str = ""     # muscle group / focus
     equipment: str = ""  # equipment used, or "bodyweight"
     notes: str = ""      # one short form cue
+    images: List[str] = []  # demo photo frames, attached server-side from the catalog
 
 
 class WorkoutPlan(BaseModel):
     title: str
     exercises: List[Exercise]
+
+
+# ── Academy (book → System-designed study campaign) ──────────────────────────
+class BookChapterPlan(BaseModel):
+    ordinal: int = 1
+    title: str
+    objective: str = ""
+    key_concepts: List[str] = []
+    youtube_query: str = ""
+    xp_reward: int = 40
+
+
+class StudyPlan(BaseModel):
+    chapters: List[BookChapterPlan]
+
+
+class ChapterNotes(BaseModel):
+    notes: str
+
+
+class BookInput(BaseModel):
+    title: str = Field(min_length=1, max_length=300)
+    author: str = Field(default="", max_length=200)
 
 
 # ── Resources (System-curated books / courses / tools per goal) ──────────────

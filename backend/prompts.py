@@ -110,13 +110,20 @@ WORKOUT_SYSTEM = (
 )
 
 
-def build_workout_prompt(user: dict) -> str:
+def build_workout_prompt(user: dict, catalog: str = "") -> str:
+    catalog_section = ""
+    if catalog:
+        catalog_section = f"""
+
+EXERCISE CATALOG (id | name | equipment | muscles) — you MUST pick exercises from this
+list and copy the exact "id" into "exercise_id" for each one:
+{catalog}
+"""
     return f"""Design ONE focused workout for TODAY for the Hunter.
 
 HUNTER — age {_u(user, 'age')}, body {_u(user, 'weight')} kg at {_u(user, 'height')} cm.
 PHYSICAL GOAL: {_u(user, 'physical_goal')}.
-AVAILABLE EQUIPMENT: {_u(user, 'equipment', 'bodyweight only')}.
-
+AVAILABLE EQUIPMENT: {_u(user, 'equipment', 'bodyweight only')}.{catalog_section}
 Rules: 4-7 exercises. Use ONLY the listed equipment — if none/bodyweight, use bodyweight
 movements only. For each exercise set "sets" (integer) and EITHER "reps" (e.g. "10-12",
 "to failure") OR "duration" (e.g. "30s", "5 min") — leave the other as "". "target" is the
@@ -124,7 +131,73 @@ muscle group, "equipment" names what is used (or "bodyweight"), "notes" is one s
 "title" names the session (e.g. "Push Hypertrophy", "Full-Body Bodyweight Burner").
 
 Return ONLY raw JSON:
-{{"title":"","exercises":[{{"name":"","sets":3,"reps":"10-12","duration":"","target":"","equipment":"","notes":""}}]}}"""
+{{"title":"","exercises":[{{"name":"","exercise_id":"","sets":3,"reps":"10-12","duration":"","target":"","equipment":"","notes":""}}]}}"""
+
+
+# ── Academy: study plans + chapter notes ────────────────────────────────────
+STUDY_SYSTEM = (
+    "You are 'The System' from Solo Leveling, acting as a ruthless personal tutor. "
+    "You convert a book into a campaign of knowledge quests the Hunter conquers in order. "
+    "You output ONLY raw JSON — no markdown, no commentary."
+)
+
+
+def build_study_plan_prompt(user: dict, book: dict, toc: list) -> str:
+    toc_section = ""
+    if toc:
+        toc_lines = "\n".join(f"- {t}" for t in toc)
+        toc_section = f"""
+THE BOOK'S REAL TABLE OF CONTENTS — base the units on it, merging small chapters into
+logical units where sensible:
+{toc_lines}
+"""
+    else:
+        toc_section = """
+No table of contents is available. Use your own knowledge of this book (if you know it)
+or its subjects to design a logical chapter-by-chapter progression.
+"""
+    subjects = ", ".join(book.get("subjects") or []) or "(unknown)"
+    return f"""Create a study campaign for the book below: 5-12 ordered units the Hunter
+completes one by one.
+
+HUNTER — age {_u(user, 'age')}, occupation {_u(user, 'occupation')}.
+INTELLECT GOAL: {_u(user, 'academic_goal')}.
+
+BOOK: "{book.get('title')}" by {book.get('author') or 'unknown'}
+Subjects: {subjects}
+Pages: {book.get('pages') or 'unknown'}
+{toc_section}
+For each unit: "ordinal" (1-based), "title" (the chapter/unit name), "objective" (ONE
+sentence: what the Hunter must be able to do after it), "key_concepts" (3-5 short
+strings), "youtube_query" (a search query string for finding good explainer videos on
+this unit's topic — topic + book or field name, NOT a URL), "xp_reward" (30-80).
+
+Return ONLY raw JSON:
+{{"chapters":[{{"ordinal":1,"title":"","objective":"","key_concepts":[""],"youtube_query":"","xp_reward":40}}]}}"""
+
+
+NOTES_SYSTEM = (
+    "You are 'The System', generating compact battle-notes for a study unit. "
+    "Write like a brilliant tutor's cheat-sheet: tight, concrete, zero fluff. "
+    "You output ONLY raw JSON — no markdown fences, no commentary."
+)
+
+
+def build_chapter_notes_prompt(user: dict, book_title: str, chapter: dict) -> str:
+    concepts = ", ".join(chapter.get("key_concepts") or [])
+    return f"""Write study notes for this unit. The Hunter's goal: {_u(user, 'academic_goal')}.
+
+BOOK: "{book_title}"
+UNIT: {chapter.get('title')}
+OBJECTIVE: {chapter.get('objective')}
+KEY CONCEPTS: {concepts}
+
+"notes" must be plain text (no markdown symbols), 150-300 words, structured as:
+core ideas explained simply, one concrete example or application, common mistakes,
+and 2 self-test questions at the end.
+
+Return ONLY raw JSON:
+{{"notes":""}}"""
 
 
 # ── Resources ─────────────────────────────────────────────────────────────────

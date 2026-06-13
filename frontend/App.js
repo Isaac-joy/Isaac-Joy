@@ -17,6 +17,7 @@ import DailyLogScreen from "./screens/DailyLogScreen";
 import MissionsScreen from "./screens/MissionsScreen";
 import WorkoutsScreen from "./screens/WorkoutsScreen";
 import ResourcesScreen from "./screens/ResourcesScreen";
+import AcademyScreen from "./screens/AcademyScreen";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -38,6 +39,7 @@ const TAB_ICON = {
   Dashboard: ["stats-chart", "stats-chart-outline"],
   Missions: ["flash", "flash-outline"],
   Workouts: ["barbell", "barbell-outline"],
+  Academy: ["school", "school-outline"],
   Resources: ["library", "library-outline"],
   Report: ["pulse", "pulse-outline"],
 };
@@ -89,6 +91,11 @@ function MainTabs() {
         name="Workouts"
         component={WorkoutsScreen}
         options={{ title: "THE FORGE", tabBarLabel: "TRAIN" }}
+      />
+      <Tab.Screen
+        name="Academy"
+        component={AcademyScreen}
+        options={{ title: "THE ACADEMY", tabBarLabel: "STUDY" }}
       />
       <Tab.Screen
         name="Resources"
