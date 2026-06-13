@@ -5,23 +5,33 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
-    "backgroundColor": "#0A0E1A",
+    "backgroundColor": "#070A14",
+    "primaryColor": "#3B82F6",
+    "scheme": "solocouncil",
+    "icon": "./assets/icon.png",
     "splash": {
+      "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0A0E1A"
+      "backgroundColor": "#070A14"
     },
     "assetBundlePatterns": [
       "**/*"
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.solocouncil.app"
+      "bundleIdentifier": "com.solocouncil.app",
+      "buildNumber": "1"
     },
     "android": {
       "package": "com.solocouncil.app",
+      "versionCode": 1,
       "adaptiveIcon": {
-        "backgroundColor": "#0A0E1A"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#070A14"
       }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-asset"
