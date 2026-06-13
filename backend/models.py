@@ -12,8 +12,14 @@ class PersonaAudit(BaseModel):
     action: str
 
 
+class DebateLine(BaseModel):
+    persona: str
+    line: str
+
+
 class CouncilAudit(BaseModel):
     audits: List[PersonaAudit]
+    debate: List[DebateLine] = []  # in-character back-and-forth before the System rules
 
 
 # ── Synthesizer output — the strict UI contract ──
@@ -155,3 +161,13 @@ class MissionInput(BaseModel):
 class ContentReport(BaseModel):
     kind: str = Field(default="verdict", max_length=40)
     content: str = Field(default="", max_length=4000)
+
+
+# ── Gates (weekly System-opened dungeon challenge) ───────────────────────────
+class GatePlan(BaseModel):
+    title: str
+    description: str = ""
+    objectives: List[str] = []
+    rank: str = "E"
+    target_stat: str = "intellect"
+    reward_xp: int = 150

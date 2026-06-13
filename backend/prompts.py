@@ -51,8 +51,13 @@ Produce a sharp, no-flattery audit from EACH of the three members:
 
 For each member give: a diagnosis, one brutal truth, and one concrete next step.
 
+THEN stage a short DEBATE: 4-6 exchanges where the three members react to and challenge
+EACH OTHER in character — they clash over priorities (e.g. the Tycoon mocking the Architect
+for unpaid studying, the Beast calling both soft, the Architect dismissing brute effort).
+Each line is punchy (1-2 sentences), in-voice, and references the Hunter's actual day.
+
 Return ONLY a JSON object in EXACTLY this shape — no markdown fences, no commentary:
-{{"audits":[{{"persona":"The Architect","audit":"...","brutal_truth":"...","action":"..."}},{{"persona":"The Tycoon","audit":"...","brutal_truth":"...","action":"..."}},{{"persona":"The Beast","audit":"...","brutal_truth":"...","action":"..."}}]}}"""
+{{"audits":[{{"persona":"The Architect","audit":"...","brutal_truth":"...","action":"..."}},{{"persona":"The Tycoon","audit":"...","brutal_truth":"...","action":"..."}},{{"persona":"The Beast","audit":"...","brutal_truth":"...","action":"..."}}],"debate":[{{"persona":"The Tycoon","line":"..."}},{{"persona":"The Architect","line":"..."}},{{"persona":"The Beast","line":"..."}}]}}"""
 
 
 SYNTHESIZER_SYSTEM = (
@@ -275,3 +280,29 @@ can take THIS WEEK to test/enter the field). Be honest about both upside and sat
 
 Return ONLY raw JSON:
 {{"paths":[{{"field":"","fit_reason":"","growth_outlook":"","demand":"Growing","key_skills":[""],"first_step":""}}]}}"""
+
+
+# ── Gates (weekly dungeon challenge) ─────────────────────────────────────────
+GATE_SYSTEM = (
+    "You are 'The System' from Solo Leveling. You open a GATE — a multi-day dungeon "
+    "challenge that forces the Hunter to confront their weakest area over 7 days. "
+    "Ominous and dramatic in tone, but the objectives are concrete and achievable. "
+    "You output ONLY raw JSON — no markdown, no commentary."
+)
+
+
+def build_gate_prompt(user: dict, weakest: str) -> str:
+    return f"""Open a 7-day GATE for the Hunter that strengthens their WEAKEST area: {weakest}.
+
+{profile_block(user)}
+WEAKEST AREA (the target of this Gate): {weakest}.
+
+Rules: "title" is an ominous Gate name (e.g. "The Gate of Idle Hands", "Crimson Gate of
+Discipline"). "description" is 1-2 dramatic sentences framing the trial. "objectives" are
+3-5 SPECIFIC, measurable tasks the Hunter can complete within 7 days that build the
+{weakest} area. "rank" is the Gate's difficulty (E, D, C, B, or A). "target_stat" MUST be
+exactly one of: intellect, wealth, strength (matching the weakest area). "reward_xp" is an
+integer 100-300 scaled to difficulty.
+
+Return ONLY raw JSON:
+{{"title":"","description":"","objectives":["",""],"rank":"E","target_stat":"{weakest}","reward_xp":150}}"""

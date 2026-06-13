@@ -111,6 +111,13 @@ export const api = {
   generateCareer: () => authedFetch("/api/me/career/generate", { method: "POST" }),
   refreshCareer: () => authedFetch("/api/me/career/refresh", { method: "POST" }),
 
+  // ── Gates ────────────────────────────────────────────────────────────────────
+  getGate: () => authedFetch("/api/me/gate"),
+  openGate: () => authedFetch("/api/me/gate/open", { method: "POST" }),
+  regenerateGate: () => authedFetch("/api/me/gate/regenerate", { method: "POST" }),
+  toggleGateObjective: (gateId, index) =>
+    authedFetch(`/api/me/gate/${gateId}/objective/${index}`, { method: "POST" }),
+
   // ── Account ──────────────────────────────────────────────────────────────────
   deleteAccount: () => authedFetch("/api/me/account", { method: "DELETE" }),
   reportContent: (kind, content) =>

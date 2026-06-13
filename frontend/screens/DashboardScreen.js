@@ -22,6 +22,8 @@ import GlowCard from "../components/GlowCard";
 import NeonButton from "../components/NeonButton";
 import FadeIn from "../components/FadeIn";
 import HunterStatus, { RANK_ORDER, RANK_COLOR } from "../components/HunterStatus";
+import GateCard from "../components/GateCard";
+import CouncilDebate from "../components/CouncilDebate";
 
 export default function DashboardScreen({ navigation }) {
   const [profile, setProfile] = useState(null);
@@ -29,13 +31,16 @@ export default function DashboardScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [rankUp, setRankUp] = useState(null);
+  const [gate, setGate] = useState(null);
+  const [gateBusy, setGateBusy] = useState(false);
   const overlay = useRef(new Animated.Value(0)).current;
 
   const load = useCallback(async () => {
     try {
-      const [p, q] = await Promise.all([api.getProfile(), api.getQuests()]);
+      const [p, q, gt] = await Promise.all([api.getProfile(), api.getQuests(), api.getGate()]);
       setProfile(p || {});
       setQuests(q || {});
+      setGate(gt || {});
       // Rank-up moment: compare against the last rank we showed this device.
       if (p && p.rank) {
         const seen = await AsyncStorage.getItem("lastRank");
@@ -88,6 +93,55 @@ export default function DashboardScreen({ navigation }) {
     );
   }
 
+  async function openGate() {
+    setGateBusy(true);
+    try {
+      const g = await api.openGate();
+      setGate(g || {});
+    } catch (e) {
+      Alert.alert("The System", e.message || String(e));
+    } finally {
+      setGateBusy(false);
+    }
+  }
+
+  async function regenerateGate() {
+    setGateBusy(true);
+    try {
+      const g = await api.regenerateGate();
+      setGate(g || {});
+    } catch (e) {
+      Alert.alert("The System", e.message || String(e));
+    } finally {
+      setGateBusy(false);
+    }
+  }
+
+  async function toggleObjective(index) {
+    if (!gate || !gate.id) return;
+    const prev = gate;
+    const objs = (gate.objectives || []).map((o, i) =>
+      i === index ? { ...o, done: !o.done } : o
+    );
+    setGate({ ...gate, objectives: objs });
+    try {
+      const r = await api.toggleGateObjective(gate.id, index);
+      if (r.cleared) {
+        Alert.alert("⟔ GATE CLEARED", `+${r.reward_xp} XP. The System acknowledges your conquest.`);
+        load();
+      } else {
+        setGate((cur) => ({
+          ...cur,
+          objectives: r.objectives || objs,
+          status: r.status || cur.status,
+        }));
+      }
+    } catch (e) {
+      setGate(prev);
+      Alert.alert("Could not update", e.message || String(e));
+    }
+  }
+
   if (loading) {
     return (
       <GradientBackground>
@@ -127,6 +181,16 @@ export default function DashboardScreen({ navigation }) {
           <HunterStatus profile={stats} />
         </FadeIn>
 
+        <FadeIn delay={55}>
+          <GateCard
+            gate={gate}
+            onOpen={openGate}
+            onToggle={toggleObjective}
+            onRegenerate={regenerateGate}
+            busy={gateBusy}
+          />
+        </FadeIn>
+
         <FadeIn delay={70}>
           <GlowCard style={styles.statsCard}>
             <StatBar label="INTELLECT" value={stats.intellect} color={colors.accent} grad={gradients.accent} />
@@ -151,6 +215,12 @@ export default function DashboardScreen({ navigation }) {
             ) : null}
           </GlowCard>
         </FadeIn>
+
+        {quests && quests.council ? (
+          <FadeIn delay={170}>
+            <CouncilDebate council={quests.council} />
+          </FadeIn>
+        ) : null}
 
         <FadeIn delay={200}>
           <Text style={styles.sectionTitle}>ACTIVE QUESTS</Text>

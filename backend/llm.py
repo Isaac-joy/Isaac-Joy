@@ -17,6 +17,7 @@ from models import (
     CareerList,
     ChapterNotes,
     CouncilAudit,
+    GatePlan,
     MissionList,
     MissionPolish,
     ResourceList,
@@ -26,6 +27,7 @@ from models import (
 )
 from prompts import (
     CAREER_SYSTEM,
+    GATE_SYSTEM,
     MISSIONS_SYSTEM,
     NOTES_SYSTEM,
     POLISH_SYSTEM,
@@ -36,6 +38,7 @@ from prompts import (
     build_career_prompt,
     build_chapter_notes_prompt,
     build_council_prompt,
+    build_gate_prompt,
     build_missions_prompt,
     build_polish_prompt,
     build_resources_prompt,
@@ -216,6 +219,15 @@ async def generate_career_paths(user: dict) -> list:
             CareerList.model_validate_json, temperature=0.5,
         )
     return result.paths
+
+
+async def generate_gate(user: dict, weakest: str) -> GatePlan:
+    user_msg = build_gate_prompt(user, weakest)
+    async with httpx.AsyncClient(timeout=settings.llm_timeout_seconds) as client:
+        return await _openrouter_json(
+            client, settings.synth_model_list, GATE_SYSTEM, user_msg,
+            GatePlan.model_validate_json, temperature=0.7,
+        )
 
 
 async def generate_chapter_notes(user: dict, book_title: str, chapter: dict) -> ChapterNotes:

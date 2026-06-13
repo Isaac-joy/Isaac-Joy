@@ -20,13 +20,14 @@ async def _claim_next() -> dict | None:
     return rows[0] if rows else None
 
 
-async def _complete(log: dict, verdict) -> None:
+async def _complete(log: dict, verdict, audits) -> None:
     await db.insert("active_quests", {
         "user_id": log["user_id"],
         "log_id": log["id"],
         "system_verdict": verdict.system_verdict,
         "quests": [q.model_dump() for q in verdict.quests],
         "stat_adjustments": verdict.stat_adjustments.model_dump(),
+        "council": audits.model_dump(),  # the Council's audits + in-character debate
     })
     sa = verdict.stat_adjustments
     await db.rpc("apply_stat_deltas", {
@@ -67,7 +68,7 @@ async def _process(log: dict) -> None:
         raise ValueError(f"user {log['user_id']} not found")
     audits = await run_council(user, log["log_data"])
     verdict = await run_synthesizer(user, audits)
-    await _complete(log, verdict)
+    await _complete(log, verdict, audits)
 
 
 async def council_worker() -> None:

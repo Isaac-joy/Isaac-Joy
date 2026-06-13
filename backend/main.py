@@ -5,7 +5,7 @@ does the slow AI orchestration. The user id always comes from a verified JWT.
 """
 import asyncio
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,6 +20,7 @@ from errors import AppError
 from llm import (
     generate_career_paths,
     generate_chapter_notes,
+    generate_gate,
     generate_missions,
     generate_resources,
     generate_study_plan,
@@ -644,3 +645,118 @@ async def generate_career_endpoint(user_id: str = Depends(get_current_user_id)):
 async def refresh_career(user_id: str = Depends(get_current_user_id)):
     await db.delete("career_paths", filters={"user_id": f"eq.{user_id}"})
     return await _create_career(user_id)
+
+
+# ── Gates (weekly System-opened dungeon challenge) ───────────────────────────
+_GATE_CLEAR_STAT_BONUS = 6
+_VALID_STATS = ("intellect", "wealth", "strength")
+
+
+def _weakest_stat(profile: dict) -> str:
+    vals = {s: profile.get(s, 0) or 0 for s in _VALID_STATS}
+    return min(vals, key=vals.get)
+
+
+def _parse_ts(s):
+    if not s:
+        return None
+    try:
+        return datetime.fromisoformat(str(s).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+async def _create_gate(user_id: str) -> dict:
+    profile = await db.select_one("users", filters={"id": f"eq.{user_id}"}) or {}
+    weakest = _weakest_stat(profile)
+    plan = await generate_gate(profile, weakest)
+    target = plan.target_stat if plan.target_stat in _VALID_STATS else weakest
+    deadline = (datetime.now(timezone.utc) + timedelta(days=7)).isoformat()
+    return await db.insert_returning(
+        "gates",
+        {
+            "user_id": user_id,
+            "title": plan.title,
+            "description": plan.description,
+            "objectives": [{"text": o, "done": False} for o in plan.objectives],
+            "rank": plan.rank,
+            "target_stat": target,
+            "reward_xp": plan.reward_xp,
+            "deadline": deadline,
+        },
+    )
+
+
+async def _latest_gate(user_id: str):
+    rows = await db.select_rows(
+        "gates", filters={"user_id": f"eq.{user_id}"}, order="opened_at", desc=True, limit=1
+    )
+    if not rows:
+        return None
+    gate = rows[0]
+    # Lazy collapse: an active Gate past its deadline with unfinished objectives fails.
+    if gate.get("status") == "active":
+        deadline = _parse_ts(gate.get("deadline"))
+        objs = gate.get("objectives") or []
+        all_done = bool(objs) and all(o.get("done") for o in objs)
+        if deadline and deadline < datetime.now(timezone.utc) and not all_done:
+            await db.update("gates", {"status": "collapsed"}, filters={"id": f"eq.{gate['id']}"})
+            gate["status"] = "collapsed"
+    return gate
+
+
+@app.get("/api/me/gate")
+async def get_gate(user_id: str = Depends(get_current_user_id)):
+    return await _latest_gate(user_id) or {}
+
+
+@app.post("/api/me/gate/open")
+async def open_gate(user_id: str = Depends(get_current_user_id)):
+    gate = await _latest_gate(user_id)
+    if gate and gate.get("status") == "active":
+        return gate  # one active Gate at a time
+    return await _create_gate(user_id)
+
+
+@app.post("/api/me/gate/regenerate")
+async def regenerate_gate(user_id: str = Depends(get_current_user_id)):
+    await db.update(
+        "gates", {"status": "collapsed"},
+        filters={"user_id": f"eq.{user_id}", "status": "eq.active"},
+    )
+    return await _create_gate(user_id)
+
+
+@app.post("/api/me/gate/{gate_id}/objective/{index}")
+async def toggle_gate_objective(
+    gate_id: int, index: int, user_id: str = Depends(get_current_user_id)
+):
+    gate = await db.select_one(
+        "gates", filters={"id": f"eq.{gate_id}", "user_id": f"eq.{user_id}"}
+    )
+    if not gate:
+        raise HTTPException(status_code=404, detail="Gate not found")
+    objs = gate.get("objectives") or []
+    if index < 0 or index >= len(objs):
+        raise HTTPException(status_code=400, detail="Invalid objective")
+    if gate.get("status") != "active":
+        return {"status": gate.get("status"), "objectives": objs, "cleared": False}
+    objs[index]["done"] = not objs[index].get("done")
+    all_done = all(o.get("done") for o in objs)
+    update = {"objectives": objs}
+    if all_done:
+        update["status"] = "cleared"
+        update["cleared_at"] = datetime.now(timezone.utc).isoformat()
+    await db.update("gates", update, filters={"id": f"eq.{gate_id}", "user_id": f"eq.{user_id}"})
+    if all_done:
+        await db.rpc("award_xp", {"p_user_id": user_id, "p_xp": gate.get("reward_xp") or 150})
+        stat = gate.get("target_stat") if gate.get("target_stat") in _VALID_STATS else "intellect"
+        deltas = {"p_user_id": user_id, "p_intellect": 0, "p_wealth": 0, "p_strength": 0}
+        deltas[f"p_{stat}"] = _GATE_CLEAR_STAT_BONUS
+        await db.rpc("apply_stat_deltas", deltas)
+    return {
+        "status": update.get("status", "active"),
+        "objectives": objs,
+        "cleared": all_done,
+        "reward_xp": gate.get("reward_xp") or 150,
+    }
