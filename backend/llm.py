@@ -14,6 +14,7 @@ import httpx
 from config import settings
 from errors import AIUnavailableError
 from models import (
+    CareerList,
     ChapterNotes,
     CouncilAudit,
     MissionList,
@@ -24,6 +25,7 @@ from models import (
     WorkoutPlan,
 )
 from prompts import (
+    CAREER_SYSTEM,
     MISSIONS_SYSTEM,
     NOTES_SYSTEM,
     POLISH_SYSTEM,
@@ -31,6 +33,7 @@ from prompts import (
     STUDY_SYSTEM,
     SYNTHESIZER_SYSTEM,
     WORKOUT_SYSTEM,
+    build_career_prompt,
     build_chapter_notes_prompt,
     build_council_prompt,
     build_missions_prompt,
@@ -196,13 +199,23 @@ async def generate_workout(user: dict, catalog: str = "") -> WorkoutPlan:
         )
 
 
-async def generate_study_plan(user: dict, book: dict, toc: list) -> StudyPlan:
-    user_msg = build_study_plan_prompt(user, book, toc)
+async def generate_study_plan(user: dict, book: dict, toc: list, level: str = "") -> StudyPlan:
+    user_msg = build_study_plan_prompt(user, book, toc, level)
     async with httpx.AsyncClient(timeout=settings.llm_timeout_seconds) as client:
         return await _openrouter_json(
             client, settings.synth_model_list, STUDY_SYSTEM, user_msg,
             StudyPlan.model_validate_json, temperature=0.5,
         )
+
+
+async def generate_career_paths(user: dict) -> list:
+    user_msg = build_career_prompt(user)
+    async with httpx.AsyncClient(timeout=settings.llm_timeout_seconds) as client:
+        result = await _openrouter_json(
+            client, settings.synth_model_list, CAREER_SYSTEM, user_msg,
+            CareerList.model_validate_json, temperature=0.5,
+        )
+    return result.paths
 
 
 async def generate_chapter_notes(user: dict, book_title: str, chapter: dict) -> ChapterNotes:

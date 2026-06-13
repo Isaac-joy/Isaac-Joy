@@ -95,6 +95,21 @@ class ChapterNotes(BaseModel):
 class BookInput(BaseModel):
     title: str = Field(min_length=1, max_length=300)
     author: str = Field(default="", max_length=200)
+    level: str = Field(default="", max_length=120)  # e.g. "Class 11", "Undergraduate"
+
+
+# ── Career Compass (interest + growth driven field guidance) ─────────────────
+class CareerPath(BaseModel):
+    field: str
+    fit_reason: str = ""
+    growth_outlook: str = ""
+    demand: str = "Growing"
+    key_skills: List[str] = []
+    first_step: str = ""
+
+
+class CareerList(BaseModel):
+    paths: List[CareerPath]
 
 
 # ── Resources (System-curated books / courses / tools per goal) ──────────────
@@ -126,6 +141,8 @@ class ProfileUpdate(BaseModel):
     height: Optional[float] = None
     physical_goal: Optional[str] = None
     equipment: Optional[str] = None
+    interests: Optional[str] = None
+    education_level: Optional[str] = None
 
 
 class MissionInput(BaseModel):

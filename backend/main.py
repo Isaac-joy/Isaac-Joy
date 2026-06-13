@@ -17,6 +17,7 @@ from auth import get_current_user_id
 from config import settings
 from errors import AppError
 from llm import (
+    generate_career_paths,
     generate_chapter_notes,
     generate_missions,
     generate_resources,
@@ -449,7 +450,7 @@ async def enroll_book(body: BookInput, user_id: str = Depends(get_current_user_i
     except Exception as e:  # noqa: BLE001
         print(f"[academy] free-text resolve failed: {e!r}", flush=True)
 
-    plan = await generate_study_plan(profile, meta, toc)
+    plan = await generate_study_plan(profile, meta, toc, body.level)
 
     book = await db.insert_returning(
         "books",
@@ -561,3 +562,58 @@ async def delete_book(book_id: int, user_id: str = Depends(get_current_user_id))
         "books", filters={"id": f"eq.{book_id}", "user_id": f"eq.{user_id}"}
     )
     return {"status": "deleted", "book_id": book_id}
+
+
+# ── Career Compass (interest + growth driven field guidance) ─────────────────
+async def _create_career(user_id: str) -> list:
+    profile = await db.select_one("users", filters={"id": f"eq.{user_id}"}) or {}
+    paths = await generate_career_paths(profile)
+    created = []
+    for p in paths:
+        created.append(
+            await db.insert_returning(
+                "career_paths",
+                {
+                    "user_id": user_id,
+                    "field": p.field,
+                    "fit_reason": p.fit_reason,
+                    "growth_outlook": p.growth_outlook,
+                    "demand": p.demand,
+                    "key_skills": p.key_skills,
+                    "first_step": p.first_step,
+                },
+            )
+        )
+    return created
+
+
+@app.get("/api/me/career")
+async def list_career(user_id: str = Depends(get_current_user_id)):
+    return await db.select_rows(
+        "career_paths",
+        filters={"user_id": f"eq.{user_id}"},
+        order="created_at",
+        desc=True,
+        limit=20,
+    )
+
+
+@app.post("/api/me/career/generate")
+async def generate_career_endpoint(user_id: str = Depends(get_current_user_id)):
+    # Idempotent: return the existing compass if the System already charted it.
+    existing = await db.select_rows(
+        "career_paths",
+        filters={"user_id": f"eq.{user_id}"},
+        order="created_at",
+        desc=True,
+        limit=20,
+    )
+    if existing:
+        return existing
+    return await _create_career(user_id)
+
+
+@app.post("/api/me/career/refresh")
+async def refresh_career(user_id: str = Depends(get_current_user_id)):
+    await db.delete("career_paths", filters={"user_id": f"eq.{user_id}"})
+    return await _create_career(user_id)

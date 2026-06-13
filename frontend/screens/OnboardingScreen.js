@@ -11,6 +11,8 @@ const FIELDS = [
   { key: "name", label: "Name", keyboard: "default" },
   { key: "age", label: "Age", keyboard: "numeric" },
   { key: "occupation", label: "Occupation", keyboard: "default" },
+  { key: "education_level", label: "Education level / class", keyboard: "default" },
+  { key: "interests", label: "Your interests (the System tailors everything to these)", multiline: true },
   { key: "academic_goal", label: "Intellectual goal", multiline: true },
   { key: "financial_system", label: "Financial system", multiline: true },
   { key: "wealth_goal", label: "Wealth goal", multiline: true },

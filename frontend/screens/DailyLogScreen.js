@@ -58,7 +58,7 @@ export default function DailyLogScreen({ navigation }) {
           if (fresh) {
             setPhase("idle");
             setText("");
-            navigation.navigate("Dashboard");
+            navigation.navigate("Main", { screen: "Dashboard" });
             return;
           }
         } catch (_) {}
@@ -103,7 +103,7 @@ export default function DailyLogScreen({ navigation }) {
             title="BACK TO DASHBOARD"
             onPress={() => {
               setPhase("idle");
-              navigation.navigate("Dashboard");
+              navigation.navigate("Main", { screen: "Dashboard" });
             }}
             style={{ marginTop: 24, alignSelf: "stretch" }}
           />

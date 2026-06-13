@@ -41,7 +41,6 @@ const TAB_ICON = {
   Workouts: ["barbell", "barbell-outline"],
   Academy: ["school", "school-outline"],
   Resources: ["library", "library-outline"],
-  Report: ["pulse", "pulse-outline"],
 };
 
 function SignOutButton() {
@@ -101,11 +100,6 @@ function MainTabs() {
         name="Resources"
         component={ResourcesScreen}
         options={{ title: "THE ARMORY", tabBarLabel: "LIBRARY" }}
-      />
-      <Tab.Screen
-        name="Report"
-        component={DailyLogScreen}
-        options={{ title: "REPORT", tabBarLabel: "REPORT" }}
       />
     </Tab.Navigator>
   );
@@ -199,6 +193,18 @@ export default function App() {
           }}
         />
         <Stack.Screen name="Main" component={MainTabs} />
+        <Stack.Screen
+          name="Report"
+          component={DailyLogScreen}
+          options={{
+            headerShown: true,
+            title: "REPORT TO THE COUNCIL",
+            headerStyle: { backgroundColor: colors.bgAlt },
+            headerShadowVisible: false,
+            headerTintColor: colors.text,
+            headerTitleStyle: { letterSpacing: 2, fontWeight: "900" },
+          }}
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );

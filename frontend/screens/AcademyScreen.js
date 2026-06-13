@@ -26,6 +26,7 @@ import { colors, fonts, gradients } from "../theme";
 import GradientBackground from "../components/GradientBackground";
 import GlowCard from "../components/GlowCard";
 import NeonButton from "../components/NeonButton";
+import CareerCard from "../components/CareerCard";
 import FadeIn from "../components/FadeIn";
 
 function watchOnYouTube(query) {
@@ -118,15 +119,21 @@ function ChapterCard({ book, chapter, onComplete }) {
 
 // ── Screen ───────────────────────────────────────────────────────────────────
 export default function AcademyScreen() {
+  const [mode, setMode] = useState("books"); // books | career
+
   const [bookList, setBookList] = useState([]);
   const [chapters, setChapters] = useState([]);
-  const [selected, setSelected] = useState(null); // book object when viewing detail
+  const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(true);
   const [chLoading, setChLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
+  const [career, setCareer] = useState([]);
+  const [careerLoaded, setCareerLoaded] = useState(false);
+  const [careerBusy, setCareerBusy] = useState(false);
+
   const [modal, setModal] = useState(false);
-  const [form, setForm] = useState({ title: "", author: "" });
+  const [form, setForm] = useState({ title: "", author: "", level: "" });
   const [enrolling, setEnrolling] = useState(false);
 
   const burstY = useRef(new Animated.Value(0)).current;
@@ -151,6 +158,22 @@ export default function AcademyScreen() {
     }, [load])
   );
 
+  async function loadCareer(force) {
+    if (careerLoaded && !force) return;
+    try {
+      const rows = await api.getCareer();
+      setCareer(Array.isArray(rows) ? rows : []);
+      setCareerLoaded(true);
+    } catch (_) {
+      // keep prior
+    }
+  }
+
+  function switchMode(m) {
+    setMode(m);
+    if (m === "career") loadCareer(false);
+  }
+
   function fireBurst(xp) {
     setBurstText(`+${xp} INT`);
     burstY.setValue(0);
@@ -159,6 +182,19 @@ export default function AcademyScreen() {
       Animated.timing(burstY, { toValue: -90, duration: 950, useNativeDriver: true }),
       Animated.timing(burstO, { toValue: 0, duration: 950, useNativeDriver: true }),
     ]).start();
+  }
+
+  async function chartCareer(force) {
+    setCareerBusy(true);
+    try {
+      const rows = force ? await api.refreshCareer() : await api.generateCareer();
+      setCareer(Array.isArray(rows) ? rows : []);
+      setCareerLoaded(true);
+    } catch (e) {
+      Alert.alert("The System", e.message || String(e));
+    } finally {
+      setCareerBusy(false);
+    }
   }
 
   async function openBook(book) {
@@ -177,7 +213,7 @@ export default function AcademyScreen() {
 
   async function enroll() {
     if (!form.title.trim()) {
-      Alert.alert("Missing title", "Tell the System which book you are studying.");
+      Alert.alert("Missing", "Enter a book title or a subject (e.g. 'Biology').");
       return;
     }
     setEnrolling(true);
@@ -185,9 +221,10 @@ export default function AcademyScreen() {
       const r = await api.enrollBook({
         title: form.title.trim(),
         author: form.author.trim(),
+        level: form.level.trim(),
       });
       setModal(false);
-      setForm({ title: "", author: "" });
+      setForm({ title: "", author: "", level: "" });
       await load();
       if (r && r.book) {
         setSelected(r.book);
@@ -240,7 +277,7 @@ export default function AcademyScreen() {
     ]);
   }
 
-  // ── Detail view (chapters) ──────────────────────────────────────────────────
+  // ── Book detail view (chapters) ─────────────────────────────────────────────
   if (selected) {
     const doneCount = chapters.filter((c) => c.status === "completed").length;
     return (
@@ -248,7 +285,7 @@ export default function AcademyScreen() {
         <ScrollView contentContainerStyle={styles.content}>
           <Pressable style={styles.backRow} onPress={() => setSelected(null)}>
             <Ionicons name="chevron-back" size={18} color={colors.accentGlow} />
-            <Text style={styles.backTxt}>ALL BOOKS</Text>
+            <Text style={styles.backTxt}>BACK</Text>
           </Pressable>
 
           <FadeIn>
@@ -304,33 +341,93 @@ export default function AcademyScreen() {
     );
   }
 
-  // ── List view (books) ───────────────────────────────────────────────────────
+  // ── List view: header with BOOKS / CAREER toggle ────────────────────────────
   const Header = (
-    <FadeIn>
-      <Text style={styles.hero}>THE ACADEMY</Text>
-      <Text style={styles.heroSub}>
-        Name the book you're studying. The System forges it into a campaign — unit by
-        unit, with videos and battle-notes.
-      </Text>
-    </FadeIn>
+    <View>
+      <FadeIn>
+        <Text style={styles.hero}>THE ACADEMY</Text>
+        <Text style={styles.heroSub}>
+          {mode === "books"
+            ? "Name a book or a subject (e.g. “Biology, Class 11”). The System forges it into a campaign."
+            : "Where should you go? The System maps your interests to fields — weighing real growth and demand."}
+        </Text>
+      </FadeIn>
+
+      <FadeIn delay={60}>
+        <View style={styles.toggle}>
+          <Pressable
+            style={[styles.toggleBtn, mode === "books" && styles.toggleOn]}
+            onPress={() => switchMode("books")}
+          >
+            <Ionicons name="library" size={14} color={mode === "books" ? colors.bg : colors.textDim} />
+            <Text style={[styles.toggleTxt, mode === "books" && styles.toggleTxtOn]}>STUDY</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.toggleBtn, mode === "career" && styles.toggleOn]}
+            onPress={() => switchMode("career")}
+          >
+            <Ionicons name="compass" size={14} color={mode === "career" ? colors.bg : colors.textDim} />
+            <Text style={[styles.toggleTxt, mode === "career" && styles.toggleTxtOn]}>CAREER</Text>
+          </Pressable>
+        </View>
+      </FadeIn>
+
+      {mode === "career" && career.length > 0 ? (
+        <FadeIn delay={80}>
+          <NeonButton
+            title={careerBusy ? "RE-CHARTING" : "⟲ RE-CHART"}
+            onPress={() => chartCareer(true)}
+            busy={careerBusy}
+            small
+            grad={gradients.accent}
+            style={{ alignSelf: "flex-start", marginBottom: 14 }}
+          />
+        </FadeIn>
+      ) : null}
+    </View>
   );
 
-  const Empty = !loading ? (
+  const EmptyBooks = !loading ? (
     <FadeIn delay={100}>
       <GlowCard style={styles.emptyCard} glow={colors.accent}>
         <Ionicons name="school-outline" size={40} color={colors.accent} />
         <Text style={styles.emptyTitle}>NO ACTIVE CAMPAIGNS</Text>
         <Text style={styles.emptyText}>
-          Enroll a book — title and author — and the System will plan your conquest of it.
+          Enroll a book or a school subject and the System will plan your conquest of it,
+          chapter by chapter.
         </Text>
         <NeonButton
-          title="＋ ENROLL A BOOK"
+          title="＋ ENROLL"
           onPress={() => setModal(true)}
           style={{ marginTop: 16, alignSelf: "stretch" }}
         />
       </GlowCard>
     </FadeIn>
   ) : null;
+
+  const EmptyCareer = (
+    <FadeIn delay={100}>
+      <GlowCard style={styles.emptyCard} glow={colors.accentGlow}>
+        <Ionicons name="compass-outline" size={40} color={colors.accentGlow} />
+        <Text style={styles.emptyTitle}>CHART YOUR PATH</Text>
+        <Text style={styles.emptyText}>
+          The System will read your interests and goals and recommend fields to pursue —
+          with each field's growth and demand.
+        </Text>
+        <NeonButton
+          title={careerBusy ? "CHARTING" : "GET CAREER GUIDANCE"}
+          onPress={() => chartCareer(false)}
+          busy={careerBusy}
+          style={{ marginTop: 16, alignSelf: "stretch" }}
+        />
+        <Text style={styles.disclaimer}>
+          AI guidance based on the System's knowledge — a compass, not a guarantee.
+        </Text>
+      </GlowCard>
+    </FadeIn>
+  );
+
+  const data = mode === "books" ? bookList : career;
 
   return (
     <GradientBackground>
@@ -340,60 +437,63 @@ export default function AcademyScreen() {
         </View>
       ) : (
         <FlatList
-          data={bookList}
-          keyExtractor={(b) => String(b.id)}
-          renderItem={({ item, index }) => (
-            <FadeIn delay={Math.min(index * 40, 200)}>
-              <Pressable onPress={() => openBook(item)}>
-                <View style={styles.bookCard}>
-                  {item.cover_url ? (
-                    <Image source={{ uri: item.cover_url }} style={styles.cover} />
-                  ) : (
-                    <View style={[styles.cover, styles.coverFallback]}>
-                      <Ionicons name="book" size={22} color={colors.violet} />
-                    </View>
-                  )}
-                  <View style={{ flex: 1, marginLeft: 12 }}>
-                    <Text style={styles.bookTitle} numberOfLines={2}>{item.title}</Text>
-                    {item.author ? (
-                      <Text style={styles.bookAuthor} numberOfLines={1}>{item.author}</Text>
-                    ) : null}
-                    <View style={styles.badgeRow}>
-                      {item.status === "completed" ? (
-                        <Text style={styles.doneBadge}>CONQUERED ✓</Text>
-                      ) : (
-                        <Text style={styles.activeBadge}>IN PROGRESS</Text>
-                      )}
-                      {item.free_reader_url ? (
-                        <Text style={styles.freeBadge}>FREE TEXT</Text>
+          data={data}
+          keyExtractor={(item) => `${mode}-${item.id}`}
+          renderItem={({ item, index }) =>
+            mode === "books" ? (
+              <FadeIn delay={Math.min(index * 40, 200)}>
+                <Pressable onPress={() => openBook(item)}>
+                  <View style={styles.bookCard}>
+                    {item.cover_url ? (
+                      <Image source={{ uri: item.cover_url }} style={styles.cover} />
+                    ) : (
+                      <View style={[styles.cover, styles.coverFallback]}>
+                        <Ionicons name="book" size={22} color={colors.violet} />
+                      </View>
+                    )}
+                    <View style={{ flex: 1, marginLeft: 12 }}>
+                      <Text style={styles.bookTitle} numberOfLines={2}>{item.title}</Text>
+                      {item.author ? (
+                        <Text style={styles.bookAuthor} numberOfLines={1}>{item.author}</Text>
                       ) : null}
+                      <View style={styles.badgeRow}>
+                        {item.status === "completed" ? (
+                          <Text style={styles.doneBadge}>CONQUERED ✓</Text>
+                        ) : (
+                          <Text style={styles.activeBadge}>IN PROGRESS</Text>
+                        )}
+                        {item.free_reader_url ? <Text style={styles.freeBadge}>FREE TEXT</Text> : null}
+                      </View>
                     </View>
+                    <Ionicons name="chevron-forward" size={18} color={colors.textDim} />
                   </View>
-                  <Ionicons name="chevron-forward" size={18} color={colors.textDim} />
-                </View>
-              </Pressable>
-            </FadeIn>
-          )}
+                </Pressable>
+              </FadeIn>
+            ) : (
+              <FadeIn delay={Math.min(index * 50, 250)}>
+                <CareerCard path={item} rank={index + 1} />
+              </FadeIn>
+            )
+          }
           ListHeaderComponent={Header}
-          ListEmptyComponent={Empty}
+          ListEmptyComponent={mode === "books" ? EmptyBooks : EmptyCareer}
           contentContainerStyle={styles.content}
           refreshing={refreshing}
-          onRefresh={() => {
-            setRefreshing(true);
-            load();
-          }}
+          onRefresh={
+            mode === "books"
+              ? () => {
+                  setRefreshing(true);
+                  load();
+                }
+              : undefined
+          }
         />
       )}
 
-      {/* Enroll FAB */}
-      {bookList.length > 0 ? (
+      {/* Enroll FAB (books mode only) */}
+      {mode === "books" && bookList.length > 0 ? (
         <Pressable style={styles.fab} onPress={() => setModal(true)}>
-          <LinearGradient
-            colors={gradients.accent}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.fabInner}
-          >
+          <LinearGradient colors={gradients.accent} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.fabInner}>
             <Ionicons name="add" size={30} color="#04122E" />
           </LinearGradient>
         </Pressable>
@@ -412,23 +512,23 @@ export default function AcademyScreen() {
                 <ActivityIndicator size="large" color={colors.accent} />
                 <Text style={styles.enrollingTitle}>THE SYSTEM IS DESIGNING YOUR CAMPAIGN</Text>
                 <Text style={styles.enrollingSub}>
-                  Locating the book, checking for a legal free edition, and forging the
+                  Locating the material, checking for a legal free edition, and forging the
                   study plan. This can take up to a minute.
                 </Text>
               </View>
             ) : (
-              <>
+              <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
                 <View style={styles.sheetHandle} />
-                <Text style={styles.sheetTitle}>ENROLL A BOOK</Text>
-                <Text style={styles.label}>TITLE</Text>
+                <Text style={styles.sheetTitle}>ENROLL</Text>
+                <Text style={styles.label}>BOOK OR SUBJECT</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="e.g. Atomic Habits"
+                  placeholder="e.g. Atomic Habits — or 'Biology'"
                   placeholderTextColor={colors.textDim}
                   value={form.title}
                   onChangeText={(v) => setForm((f) => ({ ...f, title: v }))}
                 />
-                <Text style={styles.label}>AUTHOR (helps find the right book)</Text>
+                <Text style={styles.label}>AUTHOR (optional — helps find a specific book)</Text>
                 <TextInput
                   style={styles.input}
                   placeholder="e.g. James Clear"
@@ -436,13 +536,21 @@ export default function AcademyScreen() {
                   value={form.author}
                   onChangeText={(v) => setForm((f) => ({ ...f, author: v }))}
                 />
-                <NeonButton title="FORGE THE CAMPAIGN" onPress={enroll} style={{ marginTop: 10 }} />
+                <Text style={styles.label}>CLASS / LEVEL (optional — for school subjects)</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g. Class 11, Undergraduate"
+                  placeholderTextColor={colors.textDim}
+                  value={form.level}
+                  onChangeText={(v) => setForm((f) => ({ ...f, level: v }))}
+                />
+                <NeonButton title="FORGE THE CAMPAIGN" onPress={enroll} style={{ marginTop: 6 }} />
                 <Pressable style={styles.cancelBtn} onPress={() => setModal(false)}>
                   <Text style={styles.cancelTxt}>CANCEL</Text>
                 </Pressable>
-              </>
+                <View style={{ height: 12 }} />
+              </ScrollView>
             )}
-            <View style={{ height: 12 }} />
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -454,11 +562,33 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
   content: { padding: 20, paddingBottom: 110 },
   hero: { color: colors.text, fontSize: 20, fontWeight: "900", letterSpacing: 2 },
-  heroSub: { color: colors.textDim, fontSize: 13, lineHeight: 19, marginTop: 6, marginBottom: 18 },
+  heroSub: { color: colors.textDim, fontSize: 13, lineHeight: 19, marginTop: 6, marginBottom: 14 },
+
+  toggle: {
+    flexDirection: "row",
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 4,
+    marginBottom: 16,
+  },
+  toggleBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 9,
+    borderRadius: 9,
+  },
+  toggleOn: { backgroundColor: colors.accent },
+  toggleTxt: { color: colors.textDim, fontSize: 12, fontWeight: "800", letterSpacing: 1, marginLeft: 6 },
+  toggleTxtOn: { color: colors.bg },
 
   emptyCard: { alignItems: "center", marginTop: 10 },
   emptyTitle: { color: colors.text, fontSize: 15, fontWeight: "900", letterSpacing: 2, marginTop: 12 },
   emptyText: { color: colors.textDim, fontSize: 13, lineHeight: 20, textAlign: "center", marginTop: 8 },
+  disclaimer: { color: colors.textFaint, fontSize: 11, textAlign: "center", marginTop: 12, fontStyle: "italic" },
 
   bookCard: {
     backgroundColor: colors.glass,
@@ -568,6 +698,7 @@ const styles = StyleSheet.create({
     borderColor: colors.borderGlow,
     paddingHorizontal: 20,
     paddingTop: 10,
+    maxHeight: "90%",
   },
   sheetHandle: {
     width: 44, height: 4, borderRadius: 2,

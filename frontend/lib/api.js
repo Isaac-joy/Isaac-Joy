@@ -105,4 +105,9 @@ export const api = {
     }),
   deleteBook: (bookId) =>
     authedFetch(`/api/me/books/${bookId}`, { method: "DELETE" }),
+
+  // ── Career Compass ───────────────────────────────────────────────────────────
+  getCareer: () => authedFetch("/api/me/career"),
+  generateCareer: () => authedFetch("/api/me/career/generate", { method: "POST" }),
+  refreshCareer: () => authedFetch("/api/me/career/refresh", { method: "POST" }),
 };

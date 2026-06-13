@@ -7,6 +7,22 @@ def _u(user: dict, key: str, default: str = "(not provided)") -> str:
     return str(val) if val not in (None, "") else default
 
 
+def profile_block(user: dict) -> str:
+    """Compact 'who the Hunter is' block so the System tailors every output to them."""
+    who = f"HUNTER: age {_u(user, 'age')}, occupation {_u(user, 'occupation')}"
+    if user.get("education_level"):
+        who += f", education level {user['education_level']}"
+    who += "."
+    lines = [who]
+    if user.get("interests"):
+        lines.append(f"INTERESTS: {user['interests']}.")
+    lines.append(
+        f"GOALS — intellect: {_u(user, 'academic_goal')}; "
+        f"wealth: {_u(user, 'wealth_goal')}; physical: {_u(user, 'physical_goal')}."
+    )
+    return "\n".join(lines)
+
+
 def build_council_prompt(user: dict, log_data: str) -> str:
     """ONE Gemini call simulates all three council members (3x quota saving)."""
     return f"""You are simulating a brutally honest three-member "Council" that audits a user's daily progress in a Solo-Leveling-style self-improvement system.
@@ -70,12 +86,11 @@ MISSIONS_SYSTEM = (
 def build_missions_prompt(user: dict) -> str:
     return f"""Issue 4 missions for TODAY that force concrete progress toward the Hunter's goals.
 
-HUNTER — age {_u(user, 'age')}, occupation {_u(user, 'occupation')}.
-GOALS — intellect: {_u(user, 'academic_goal')}; wealth: {_u(user, 'wealth_goal')}; physical: {_u(user, 'physical_goal')}.
+{profile_block(user)}
 
-Rules: each mission must be specific, measurable, and completable today. Cover a mix of the
-Hunter's goals. category must be one of: intellect, wealth, strength, general.
-xp_reward is an integer 30-150 scaled to difficulty.
+Rules: each mission must be specific, measurable, and completable today. Tailor them to the
+Hunter's interests and situation. Cover a mix of the Hunter's goals. category must be one of:
+intellect, wealth, strength, general. xp_reward is an integer 30-150 scaled to difficulty.
 
 Return ONLY raw JSON:
 {{"missions":[{{"title":"","description":"","category":"intellect","xp_reward":50}}]}}"""
@@ -142,8 +157,7 @@ STUDY_SYSTEM = (
 )
 
 
-def build_study_plan_prompt(user: dict, book: dict, toc: list) -> str:
-    toc_section = ""
+def build_study_plan_prompt(user: dict, book: dict, toc: list, level: str = "") -> str:
     if toc:
         toc_lines = "\n".join(f"- {t}" for t in toc)
         toc_section = f"""
@@ -153,24 +167,32 @@ logical units where sensible:
 """
     else:
         toc_section = """
-No table of contents is available. Use your own knowledge of this book (if you know it)
-or its subjects to design a logical chapter-by-chapter progression.
+No table of contents was found. If this is a recognized academic subject or standard
+textbook (e.g. school/college Biology, Chemistry, Physics, Mathematics, History, etc.),
+build the units from the STANDARD CURRICULUM for the given level — cover the canonical
+chapters/topics taught at that level, in teaching order. Otherwise use your knowledge of
+this specific book, or its subjects, to design a logical progression.
 """
+    level = level or user.get("education_level") or ""
+    level_line = f"LEVEL / CLASS: {level}." if level else ""
     subjects = ", ".join(book.get("subjects") or []) or "(unknown)"
-    return f"""Create a study campaign for the book below: 5-12 ordered units the Hunter
-completes one by one.
+    return f"""Create a study campaign: 5-14 ordered units the Hunter completes one by one.
+This may be a self-improvement book OR an academic subject/textbook for a school or college
+class — adapt accordingly.
 
-HUNTER — age {_u(user, 'age')}, occupation {_u(user, 'occupation')}.
-INTELLECT GOAL: {_u(user, 'academic_goal')}.
+{profile_block(user)}
+{level_line}
 
-BOOK: "{book.get('title')}" by {book.get('author') or 'unknown'}
+SUBJECT / BOOK: "{book.get('title')}" by {book.get('author') or 'unknown / N/A'}
 Subjects: {subjects}
 Pages: {book.get('pages') or 'unknown'}
 {toc_section}
-For each unit: "ordinal" (1-based), "title" (the chapter/unit name), "objective" (ONE
-sentence: what the Hunter must be able to do after it), "key_concepts" (3-5 short
-strings), "youtube_query" (a search query string for finding good explainer videos on
-this unit's topic — topic + book or field name, NOT a URL), "xp_reward" (30-80).
+For an ACADEMIC subject, make units = curriculum chapters/topics; "objective" states the
+exam-relevant skill; "key_concepts" are the must-know terms/laws/formulas; weight harder
+chapters with higher xp. For each unit return: "ordinal" (1-based), "title", "objective"
+(ONE sentence: what the Hunter must be able to do after it), "key_concepts" (3-5 short
+strings), "youtube_query" (a search-query STRING for explainer videos — topic + subject +
+level, NOT a URL), "xp_reward" (30-80).
 
 Return ONLY raw JSON:
 {{"chapters":[{{"ordinal":1,"title":"","objective":"","key_concepts":[""],"youtube_query":"","xp_reward":40}}]}}"""
@@ -220,3 +242,26 @@ wealth, strength, general. "author" is the author/creator (or "" if not applicab
 
 Return ONLY raw JSON:
 {{"resources":[{{"title":"","author":"","type":"book","category":"intellect","reason":""}}]}}"""
+
+
+# ── Career Compass ───────────────────────────────────────────────────────────
+CAREER_SYSTEM = (
+    "You are 'The System', a sharp, honest career strategist. You map the Hunter's "
+    "interests and strengths to fields, weighing each field's real-world growth and demand. "
+    "You never hype — you tell the truth about outlook. You output ONLY raw JSON."
+)
+
+
+def build_career_prompt(user: dict) -> str:
+    return f"""Recommend 4 career fields/paths for the Hunter, ranked best-fit first.
+
+{profile_block(user)}
+
+For each path: "field" (the field or role), "fit_reason" (ONE line: why it matches the
+Hunter's interests and strengths), "growth_outlook" (ONE line on where this field is heading
+over the next 5-10 years, based on real trends), "demand" (ONE word: High | Growing | Stable
+| Niche), "key_skills" (3-5 skills to build), "first_step" (ONE concrete action the Hunter
+can take THIS WEEK to test/enter the field). Be honest about both upside and saturation.
+
+Return ONLY raw JSON:
+{{"paths":[{{"field":"","fit_reason":"","growth_outlook":"","demand":"Growing","key_skills":[""],"first_step":""}}]}}"""
