@@ -36,6 +36,7 @@ class SystemVerdict(BaseModel):
     system_verdict: str
     quests: List[Quest]
     stat_adjustments: StatAdjustments
+    memory_update: str = ""  # System's refreshed dossier on the Hunter (carried forward)
 
 
 # ── Missions (System-generated daily + user-editable, System-polished) ──

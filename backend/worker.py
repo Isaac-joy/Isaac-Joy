@@ -12,6 +12,8 @@ from config import settings
 from llm import run_council, run_synthesizer
 from supabase_client import db
 
+_REPORT_XP = 30  # XP for showing up and reporting honestly (drives Rank/Level)
+
 
 async def _claim_next() -> dict | None:
     rows = await db.rpc("claim_next_log")
@@ -33,6 +35,15 @@ async def _complete(log: dict, verdict) -> None:
         "p_wealth": sa.wealth_delta,
         "p_strength": sa.strength_delta,
     })
+    await db.rpc("award_xp", {"p_user_id": log["user_id"], "p_xp": _REPORT_XP})
+    # Carry the System's evolving memory forward so it "knows" the Hunter over time.
+    memory = (getattr(verdict, "memory_update", "") or "").strip()
+    if memory:
+        await db.update(
+            "users",
+            {"hunter_memory": memory[:1200]},
+            filters={"id": f"eq.{log['user_id']}"},
+        )
     await db.update(
         "daily_logs",
         {"status": "completed", "processed_at": datetime.now(timezone.utc).isoformat()},

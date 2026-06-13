@@ -20,6 +20,8 @@ def profile_block(user: dict) -> str:
         f"GOALS — intellect: {_u(user, 'academic_goal')}; "
         f"wealth: {_u(user, 'wealth_goal')}; physical: {_u(user, 'physical_goal')}."
     )
+    if user.get("hunter_memory"):
+        lines.append(f"WHAT THE SYSTEM KNOWS (from past days): {user['hunter_memory']}")
     return "\n".join(lines)
 
 
@@ -35,6 +37,7 @@ USER PROFILE
 - Wealth goal: {_u(user, 'wealth_goal')}
 - Body: {_u(user, 'weight')} kg at {_u(user, 'height')} cm
 - Physical goal: {_u(user, 'physical_goal')}
+- What the System remembers about this Hunter: {_u(user, 'hunter_memory', 'nothing yet — an early audit')}
 
 THE USER'S LOG FOR TODAY
 \"\"\"
@@ -61,18 +64,25 @@ SYNTHESIZER_SYSTEM = (
 
 
 def build_synthesizer_prompt(user: dict, audits: dict) -> str:
+    prior = _u(user, "hunter_memory", "(none yet — first impressions)")
     return f"""USER PROFILE: age {_u(user, 'age')}, occupation {_u(user, 'occupation')}.
 GOALS — intellect: {_u(user, 'academic_goal')}; wealth: {_u(user, 'wealth_goal')}; physical: {_u(user, 'physical_goal')}.
 CURRENT STATS — intellect {user.get('intellect', 0)}, wealth {user.get('wealth', 0)}, strength {user.get('strength', 0)}.
 
+WHAT YOU (THE SYSTEM) REMEMBER ABOUT THIS HUNTER SO FAR:
+{prior}
+
 THE COUNCIL'S DEBATE (JSON):
 {json.dumps(audits, ensure_ascii=False)}
 
-Synthesize the ultimate brutal truth from the debate, calculate stat changes (integers, roughly
--10..+10 each), and assign 3-5 gamified quests for the next 24 hours.
+Synthesize the ultimate brutal truth (reference the Hunter's history where it sharpens the point),
+calculate stat changes (integers, roughly -10..+10 each), and assign 3-5 gamified quests for the
+next 24 hours. Then UPDATE your long-term memory: write "memory_update" as a concise dossier
+(<=120 words) MERGING what you knew with today — recurring patterns, kept/broken promises, wins,
+excuses, and trajectory. Write durable notes to your future self, not just about today.
 
 Return ONLY raw JSON in EXACTLY this schema:
-{{"system_verdict":"","quests":[{{"title":"","description":"","category":"","difficulty":"","xp_reward":0,"penalty_for_failure":""}}],"stat_adjustments":{{"intellect_delta":0,"wealth_delta":0,"strength_delta":0}}}}"""
+{{"system_verdict":"","quests":[{{"title":"","description":"","category":"","difficulty":"","xp_reward":0,"penalty_for_failure":""}}],"stat_adjustments":{{"intellect_delta":0,"wealth_delta":0,"strength_delta":0}},"memory_update":""}}"""
 
 
 # ── Missions ────────────────────────────────────────────────────────────────

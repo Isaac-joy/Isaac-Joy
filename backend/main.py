@@ -13,6 +13,7 @@ from fastapi.responses import JSONResponse
 
 import books as book_data
 import exercise_db
+from ranks import hunter_status
 from auth import get_current_user_id
 from config import settings
 from errors import AppError
@@ -118,7 +119,9 @@ async def my_logs(user_id: str = Depends(get_current_user_id)):
 
 @app.get("/api/me/profile")
 async def my_profile(user_id: str = Depends(get_current_user_id)):
-    return await db.select_one("users", filters={"id": f"eq.{user_id}"}) or {}
+    profile = await db.select_one("users", filters={"id": f"eq.{user_id}"}) or {}
+    profile.update(hunter_status(profile.get("total_xp", 0)))  # rank, level, xp bar
+    return profile
 
 
 @app.put("/api/me/profile")
@@ -253,6 +256,7 @@ async def complete_mission(mission_id: int, user_id: str = Depends(get_current_u
             "apply_stat_deltas",
             {"p_user_id": user_id, "p_intellect": di, "p_wealth": dw, "p_strength": ds},
         )
+        await db.rpc("award_xp", {"p_user_id": user_id, "p_xp": m.get("xp_reward") or 50})
     return {"status": "completed", "mission_id": mission_id}
 
 
@@ -350,6 +354,7 @@ async def complete_workout(workout_id: int, user_id: str = Depends(get_current_u
                 "p_strength": _WORKOUT_STRENGTH_REWARD,
             },
         )
+        await db.rpc("award_xp", {"p_user_id": user_id, "p_xp": w.get("xp_reward") or 60})
     return {"status": "completed", "workout_id": workout_id}
 
 
@@ -528,6 +533,8 @@ async def complete_chapter(
             "apply_stat_deltas",
             {"p_user_id": user_id, "p_intellect": reward, "p_wealth": 0, "p_strength": 0},
         )
+        chapter_xp = (ch.get("xp_reward") or 40) + (40 if book_completed else 0)
+        await db.rpc("award_xp", {"p_user_id": user_id, "p_xp": chapter_xp})
     return {"status": "completed", "chapter_id": chapter_id, "book_completed": book_completed}
 
 
