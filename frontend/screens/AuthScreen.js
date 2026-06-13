@@ -34,17 +34,36 @@ export default function AuthScreen() {
           email: email.trim(),
           password,
         });
-        if (error) throw error;
+        if (error) {
+          if (/invalid login/i.test(error.message)) {
+            Alert.alert(
+              "Wrong email or password",
+              "Double-check your details, or tap “Forgot password?” to reset it."
+            );
+            return;
+          }
+          throw error;
+        }
       } else {
         const { data, error } = await supabase.auth.signUp({
           email: email.trim(),
           password,
         });
-        if (error) throw error;
+        if (error) {
+          if (/already|registered|exists/i.test(error.message)) {
+            Alert.alert(
+              "Account already exists",
+              "This email is already registered. Switching you to Sign In — just enter your password."
+            );
+            setMode("signin");
+            return;
+          }
+          throw error;
+        }
         if (!data.session) {
           Alert.alert(
             "Confirm your email",
-            "Account created. Check your inbox to confirm, then sign in. (You can disable email confirmation in Supabase → Auth for instant testing.)"
+            "Account created. Check your inbox for a confirmation link, then sign in."
           );
           setMode("signin");
         }
