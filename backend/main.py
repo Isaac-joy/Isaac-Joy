@@ -26,8 +26,8 @@ from llm import (
     generate_workout,
     polish_mission,
 )
-from models import BookInput, LogSubmission, MissionInput, ProfileUpdate
-from supabase_client import db
+from models import BookInput, ContentReport, LogSubmission, MissionInput, ProfileUpdate
+from supabase_client import db, delete_auth_user
 from worker import council_worker
 
 
@@ -132,6 +132,26 @@ async def update_profile(
     if payload:
         await db.update("users", payload, filters={"id": f"eq.{user_id}"})
     return await db.select_one("users", filters={"id": f"eq.{user_id}"}) or {}
+
+
+@app.delete("/api/me/account")
+async def delete_account(user_id: str = Depends(get_current_user_id)):
+    """Full, irreversible account + data deletion (Apple/Google requirement).
+    Deleting the auth user cascades through public.users to every feature table."""
+    ok = await delete_auth_user(user_id)
+    if not ok:
+        raise HTTPException(status_code=502, detail="Account deletion failed. Please try again.")
+    return {"status": "deleted"}
+
+
+@app.post("/api/me/report_content")
+async def report_content(body: ContentReport, user_id: str = Depends(get_current_user_id)):
+    """Flag AI-generated output (genAI/UGC store requirement)."""
+    await db.insert(
+        "content_reports",
+        {"user_id": user_id, "kind": body.kind, "content": body.content},
+    )
+    return {"status": "received"}
 
 
 # ── Missions ────────────────────────────────────────────────────────────────

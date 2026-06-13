@@ -148,6 +148,21 @@ class _DB:
 db = _DB()
 
 
+async def delete_auth_user(user_id: str) -> bool:
+    """Admin-delete the auth user; cascades to public.users and all feature tables."""
+    headers = {
+        "apikey": settings.supabase_service_role_key,
+        "Authorization": f"Bearer {settings.supabase_service_role_key}",
+    }
+    try:
+        resp = await _client.request(
+            "DELETE", f"{AUTH_URL}/admin/users/{user_id}", headers=headers
+        )
+    except httpx.HTTPError as e:
+        raise DatabaseError("Could not reach the auth service to delete the account.") from e
+    return resp.status_code in (200, 204)
+
+
 async def verify_jwt(token: str) -> Optional[str]:
     """Validate a Supabase user JWT via GoTrue; return the user id or None."""
     headers = {"apikey": settings.supabase_anon_key, "Authorization": f"Bearer {token}"}

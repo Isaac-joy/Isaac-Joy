@@ -110,4 +110,12 @@ export const api = {
   getCareer: () => authedFetch("/api/me/career"),
   generateCareer: () => authedFetch("/api/me/career/generate", { method: "POST" }),
   refreshCareer: () => authedFetch("/api/me/career/refresh", { method: "POST" }),
+
+  // ── Account ──────────────────────────────────────────────────────────────────
+  deleteAccount: () => authedFetch("/api/me/account", { method: "DELETE" }),
+  reportContent: (kind, content) =>
+    authedFetch("/api/me/report_content", {
+      method: "POST",
+      body: JSON.stringify({ kind, content }),
+    }),
 };

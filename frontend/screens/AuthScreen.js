@@ -56,6 +56,23 @@ export default function AuthScreen() {
     }
   }
 
+  async function forgotPassword() {
+    if (!email.trim()) {
+      Alert.alert("Enter your email", "Type your email above first, then tap reset.");
+      return;
+    }
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim());
+      if (error) throw error;
+      Alert.alert(
+        "Check your email",
+        "If an account exists for this email, a password-reset link is on its way."
+      );
+    } catch (e) {
+      Alert.alert("Could not send reset", e.message || String(e));
+    }
+  }
+
   return (
     <GradientBackground>
       <KeyboardAvoidingView
@@ -107,6 +124,12 @@ export default function AuthScreen() {
                 : "Already awakened? Sign in  →"}
             </Text>
           </TouchableOpacity>
+
+          {mode === "signin" ? (
+            <TouchableOpacity onPress={forgotPassword} style={styles.forgotWrap}>
+              <Text style={styles.forgot}>Forgot password?</Text>
+            </TouchableOpacity>
+          ) : null}
         </FadeIn>
       </KeyboardAvoidingView>
     </GradientBackground>
@@ -161,4 +184,6 @@ const styles = StyleSheet.create({
   },
   toggleWrap: { marginTop: 22, alignItems: "center" },
   toggle: { color: colors.accentGlow, fontSize: 14, fontFamily: fonts.mono },
+  forgotWrap: { marginTop: 14, alignItems: "center" },
+  forgot: { color: colors.textDim, fontSize: 13 },
 });

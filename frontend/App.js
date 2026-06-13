@@ -18,6 +18,7 @@ import MissionsScreen from "./screens/MissionsScreen";
 import WorkoutsScreen from "./screens/WorkoutsScreen";
 import ResourcesScreen from "./screens/ResourcesScreen";
 import AcademyScreen from "./screens/AcademyScreen";
+import SettingsScreen from "./screens/SettingsScreen";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -42,14 +43,6 @@ const TAB_ICON = {
   Academy: ["school", "school-outline"],
   Resources: ["library", "library-outline"],
 };
-
-function SignOutButton() {
-  return (
-    <TouchableOpacity onPress={() => supabase.auth.signOut()} hitSlop={10} style={{ marginRight: 16 }}>
-      <Text style={styles.exit}>EXIT</Text>
-    </TouchableOpacity>
-  );
-}
 
 function MainTabs() {
   return (
@@ -79,7 +72,19 @@ function MainTabs() {
       <Tab.Screen
         name="Dashboard"
         component={DashboardScreen}
-        options={{ title: "THE SYSTEM", tabBarLabel: "SYSTEM", headerRight: () => <SignOutButton /> }}
+        options={({ navigation }) => ({
+          title: "THE SYSTEM",
+          tabBarLabel: "SYSTEM",
+          headerRight: () => (
+            <TouchableOpacity
+              onPress={() => navigation.navigate("Settings")}
+              hitSlop={10}
+              style={{ marginRight: 16 }}
+            >
+              <Ionicons name="settings-outline" size={20} color={colors.text} />
+            </TouchableOpacity>
+          ),
+        })}
       />
       <Tab.Screen
         name="Missions"
@@ -199,6 +204,18 @@ export default function App() {
           options={{
             headerShown: true,
             title: "REPORT TO THE COUNCIL",
+            headerStyle: { backgroundColor: colors.bgAlt },
+            headerShadowVisible: false,
+            headerTintColor: colors.text,
+            headerTitleStyle: { letterSpacing: 2, fontWeight: "900" },
+          }}
+        />
+        <Stack.Screen
+          name="Settings"
+          component={SettingsScreen}
+          options={{
+            headerShown: true,
+            title: "SETTINGS",
             headerStyle: { backgroundColor: colors.bgAlt },
             headerShadowVisible: false,
             headerTintColor: colors.text,

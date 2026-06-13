@@ -15,3 +15,9 @@ export const BACKEND_URL = "https://solo-leveling-council-api.onrender.com";
 //   • Physical phone (Expo Go):  http://<your-PC-LAN-IP>:8000  (run uvicorn with --host 0.0.0.0)
 //   • Android emulator:          http://10.0.2.2:8000
 //   • iOS simulator:             http://127.0.0.1:8000
+
+// ── Privacy policy URL ───────────────────────────────────────────────────────
+// Host PRIVACY.md somewhere public (GitHub Pages, Notion, etc.) and put the URL here.
+// Required by both app stores. Placeholder points at the repo copy for now.
+export const PRIVACY_URL =
+  "https://github.com/Isaac-joy/Isaac-Joy/blob/main/PRIVACY.md";

@@ -150,3 +150,8 @@ class MissionInput(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     description: str = Field(default="", max_length=2000)
     category: str = "general"
+
+
+class ContentReport(BaseModel):
+    kind: str = Field(default="verdict", max_length=40)
+    content: str = Field(default="", max_length=4000)

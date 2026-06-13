@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   Pressable,
   RefreshControl,
@@ -65,6 +66,28 @@ export default function DashboardScreen({ navigation }) {
     return () => clearTimeout(t);
   }, [rankUp, overlay]);
 
+  function reportVerdict(text) {
+    Alert.alert(
+      "Report this response?",
+      "Flag this AI-generated verdict as inappropriate or incorrect?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Report",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await api.reportContent("verdict", text || "");
+              Alert.alert("Thank you", "The System has logged your report for review.");
+            } catch (e) {
+              Alert.alert("Could not report", e.message || String(e));
+            }
+          },
+        },
+      ]
+    );
+  }
+
   if (loading) {
     return (
       <GradientBackground>
@@ -118,6 +141,14 @@ export default function DashboardScreen({ navigation }) {
             <Text style={styles.verdictText}>
               {verdict || "No verdict yet. Report your day to the Council from the Report tab."}
             </Text>
+            {verdict ? (
+              <View style={styles.verdictFooter}>
+                <Text style={styles.aiNote}>⚙ AI-generated · not professional advice</Text>
+                <Pressable onPress={() => reportVerdict(verdict)} hitSlop={8}>
+                  <Text style={styles.reportFlag}>⚑ Report</Text>
+                </Pressable>
+              </View>
+            ) : null}
           </GlowCard>
         </FadeIn>
 
@@ -197,6 +228,17 @@ const styles = StyleSheet.create({
   },
   verdictCard: { marginBottom: 24 },
   verdictText: { color: colors.text, fontSize: 14, lineHeight: 21, fontStyle: "italic" },
+  verdictFooter: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  aiNote: { color: colors.textFaint, fontSize: 10, flex: 1 },
+  reportFlag: { color: colors.textDim, fontSize: 11, fontWeight: "700", paddingLeft: 8 },
   empty: { color: colors.textDim, fontSize: 14, marginBottom: 24 },
 
   rankUpWrap: {
